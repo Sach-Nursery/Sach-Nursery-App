@@ -1,3 +1,37 @@
+Below is the complete, self-contained single-file React + Tailwind CSS Sach
+Nursery ERP application with the requested modules integrated.
+
+What Was Added
+
+1.  Password-Protected Stock Adjustment Module (StockAdjustmentsPage):
+      - Dedicated module accessible from the sidebar (Stock Adjustments),
+        Dashboard Quick Modules, and Stock Management.
+      - Recording Free Samples, Donations, or Stock Loss / Damage requires
+        password authorization before saving and deducting stock.
+      - All entries auto-lock upon creation and require administrator password
+        verification to unlock and edit.
+2.  Password-Authorized Excel Import & Export in Settings:
+      - Export Inventory (.xlsx): Password-protected full export of all plant
+        varieties (ID, English/Hindi names, category, price, stock, threshold,
+        image URL, and care instructions) using SheetJS (with automatic CSV
+        fallback if offline).
+      - Import Inventory (.xlsx / .xls / .csv): Password-protected full import
+        that updates matching items by id or nameEn and adds new varieties
+        directly into IndexedDB.
+3.  Non-Inventory Open Item Sales:
+      - Available inside Sales & POS Billing, Inventory & Catalog, and the
+        Central Checkout modal.
+      - Includes quick-fill presets (Loose Garden Soil, Loose Compost, Cocopeat
+        Loose, River Pebbles, Planting Service) and custom item
+        name/rate/quantity inputs.
+      - Billed normally in invoices, Sale Summary, and WhatsApp Bills, without
+        modifying any tracked inventory stock counts.
+
+Default Login Credentials
+
+  - Username: Davinder Singh
+  - Password: msg@9999
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
