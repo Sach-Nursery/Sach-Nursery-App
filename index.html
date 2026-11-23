@@ -1,0 +1,3842 @@
+Below is the complete, self-contained web application for Sach Nursery. It is
+preloaded with every item, variety, and rate from all five of your spreadsheets
+(Herbs, Trees, Flowers, Fruits, and Ornamentals) plus nursery supplies,
+bilingual English/Hindi support, DD-MM-YYYY date formatting throughout, a
+persistent POS Cart Drawer, two-way Cash/UPI split payments, 10-day
+auto-locking, OTP password reset, Scientific Plant Care database, Workforce &
+Attendance, Personal Notes, Bill Gallery, and Excel Import/Export.
+
+Save the code below as sach-nursery.html and open it in any desktop or mobile
+browser.
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sach Nursery — Inventory, POS & Nursery ERP</title>
+  <!-- SheetJS for .xlsx/.xls/.csv Import & Export (falls back gracefully to CSV/Excel XML offline) -->
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+  <style>
+    :root {
+      --bg: #f4f7f4;
+      --surface: #ffffff;
+      --surface-2: #f9fbf9;
+      --border: #dce5dc;
+      --primary: #1b5e3a;
+      --primary-hover: #14472c;
+      --primary-light: #e7f3ec;
+      --accent: #2e8b57;
+      --text: #18231c;
+      --muted: #5c6e62;
+      --warning: #b45309;
+      --warning-bg: #fef3c7;
+      --danger: #b91c1c;
+      --danger-bg: #fee2e2;
+      --info: #0369a1;
+      --info-bg: #e0f2fe;
+      --purple: #6d28d9;
+      --purple-bg: #ede9fe;
+      --radius: 12px;
+      --radius-sm: 8px;
+      --shadow: 0 2px 10px rgba(20, 45, 30, 0.06);
+      --shadow-lg: 0 10px 30px rgba(20, 45, 30, 0.14);
+      --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans Devanagari", "Mangal", sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.45;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    button, input, select, textarea { font-family: inherit; font-size: 0.92rem; }
+    button { cursor: pointer; border: none; background: none; }
+
+    /* Layout */
+    .app-shell { display: flex; min-height: 100vh; }
+
+    .sidebar {
+      width: 256px;
+      background: #123322;
+      color: #e8f2ec;
+      display: flex;
+      flex-direction: column;
+      position: fixed;
+      inset: 0 auto 0 0;
+      z-index: 40;
+      transition: transform 0.25s ease;
+    }
+    .sidebar-brand {
+      padding: 18px 18px 14px;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .brand-logo {
+      width: 40px; height: 40px; border-radius: 10px;
+      background: linear-gradient(135deg, #34a853, #1b5e3a);
+      display: grid; place-items: center; font-size: 1.25rem;
+      box-shadow: 0 3px 10px rgba(0,0,0,0.25);
+      flex-shrink: 0;
+    }
+    .brand-title { font-weight: 700; font-size: 1.05rem; line-height: 1.2; color: #fff; }
+    .brand-sub { font-size: 0.72rem; color: #9ec4ae; }
+
+    .nav-list { padding: 10px; flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
+    .nav-btn {
+      display: flex; align-items: center; gap: 10px; width: 100%;
+      padding: 10px 12px; border-radius: 9px; color: #cce0d4;
+      text-align: left; font-weight: 500; transition: 0.15s;
+    }
+    .nav-btn:hover { background: rgba(255,255,255,0.09); color: #fff; }
+    .nav-btn.active { background: #2b7a4f; color: #fff; font-weight: 600; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
+    .nav-badge {
+      margin-left: auto; background: #ef4444; color: #fff;
+      font-size: 0.7rem; padding: 1px 7px; border-radius: 999px; font-weight: 700;
+    }
+
+    .sidebar-footer {
+      padding: 12px 14px;
+      border-top: 1px solid rgba(255,255,255,0.1);
+      font-size: 0.78rem;
+      color: #a8c7b5;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .main-area {
+      flex: 1;
+      margin-left: 256px;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    .topbar {
+      position: sticky; top: 0; z-index: 30;
+      background: rgba(255,255,255,0.92);
+      backdrop-filter: blur(8px);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 20px;
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      flex-wrap: wrap;
+    }
+    .topbar-left { display: flex; align-items: center; gap: 12px; }
+    .menu-toggle {
+      display: none; padding: 7px 10px; border-radius: 8px;
+      border: 1px solid var(--border); background: var(--surface);
+    }
+    .page-title { font-size: 1.2rem; font-weight: 700; color: var(--text); }
+    .topbar-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+    .content { padding: 20px; max-width: 1440px; width: 100%; margin: 0 auto; }
+
+    /* Buttons & Inputs */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      padding: 8px 14px; border-radius: var(--radius-sm); font-weight: 600;
+      transition: 0.15s; border: 1px solid transparent; white-space: nowrap;
+    }
+    .btn-sm { padding: 5px 10px; font-size: 0.82rem; border-radius: 6px; }
+    .btn-xs { padding: 3px 8px; font-size: 0.75rem; border-radius: 5px; }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-primary:hover { background: var(--primary-hover); }
+    .btn-accent { background: var(--accent); color: #fff; }
+    .btn-accent:hover { background: #257347; }
+    .btn-outline { background: var(--surface); border-color: var(--border); color: var(--text); }
+    .btn-outline:hover { background: var(--surface-2); border-color: #b7c7bc; }
+    .btn-danger { background: var(--danger); color: #fff; }
+    .btn-danger:hover { background: #991b1b; }
+    .btn-warning { background: #d97706; color: #fff; }
+    .btn-whatsapp { background: #16a34a; color: #fff; }
+    .btn-whatsapp:hover { background: #15803d; }
+
+    .input, .select, .textarea {
+      width: 100%; padding: 8px 11px; border: 1px solid var(--border);
+      border-radius: var(--radius-sm); background: #fff; color: var(--text);
+      outline: none; transition: border-color 0.15s;
+    }
+    .input:focus, .select:focus, .textarea:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(27,94,58,0.1); }
+    .textarea { min-height: 82px; resize: vertical; }
+    .label { display: block; font-size: 0.8rem; font-weight: 600; color: var(--muted); margin-bottom: 4px; }
+    .form-group { margin-bottom: 12px; }
+    .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+
+    /* Cards & Grids */
+    .card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); box-shadow: var(--shadow); padding: 16px;
+    }
+    .card-header {
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      margin-bottom: 14px; flex-wrap: wrap;
+    }
+    .card-title { font-size: 1rem; font-weight: 700; }
+
+    .kpi-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(215px, 1fr));
+      gap: 14px; margin-bottom: 18px;
+    }
+    .kpi-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 15px; box-shadow: var(--shadow);
+      display: flex; flex-direction: column; gap: 6px;
+    }
+    .kpi-label { font-size: 0.78rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.03em; }
+    .kpi-value { font-size: 1.55rem; font-weight: 800; color: var(--text); }
+    .kpi-sub { font-size: 0.8rem; color: var(--muted); display: flex; gap: 8px; flex-wrap: wrap; }
+
+    /* Tables */
+    .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius-sm); background: #fff; }
+    table { width: 100%; border-collapse: collapse; text-align: left; font-size: 0.88rem; }
+    th {
+      background: var(--surface-2); padding: 10px 12px; font-weight: 700;
+      color: var(--muted); border-bottom: 1px solid var(--border); white-space: nowrap;
+      font-size: 0.79rem; text-transform: uppercase; letter-spacing: 0.02em;
+    }
+    td { padding: 9px 12px; border-bottom: 1px solid #eef3ee; vertical-align: middle; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #fafcfa; }
+
+    /* Badges */
+    .badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 2px 8px; border-radius: 999px; font-size: 0.74rem; font-weight: 700;
+      white-space: nowrap;
+    }
+    .badge-green { background: var(--primary-light); color: var(--primary); }
+    .badge-amber { background: var(--warning-bg); color: var(--warning); }
+    .badge-red { background: var(--danger-bg); color: var(--danger); }
+    .badge-blue { background: var(--info-bg); color: var(--info); }
+    .badge-purple { background: var(--purple-bg); color: var(--purple); }
+    .badge-gray { background: #e5e7eb; color: #374151; }
+
+    /* Tabs */
+    .tabs { display: flex; gap: 6px; border-bottom: 1px solid var(--border); margin-bottom: 16px; flex-wrap: wrap; }
+    .tab-btn {
+      padding: 9px 15px; font-weight: 600; color: var(--muted);
+      border-bottom: 2px solid transparent; margin-bottom: -1px;
+    }
+    .tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); }
+
+    /* Date Input Group */
+    .date-ddmmyyyy-wrap { display: flex; gap: 4px; align-items: center; position: relative; }
+    .date-picker-btn {
+      padding: 7px 9px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+      background: var(--surface-2); font-size: 0.9rem; flex-shrink: 0;
+    }
+    .hidden-native-date {
+      position: absolute; opacity: 0; width: 0; height: 0; pointer-events: none;
+    }
+
+    /* Cart Drawer */
+    .drawer-backdrop {
+      position: fixed; inset: 0; background: rgba(10, 25, 15, 0.45);
+      z-index: 70; display: none; justify-content: flex-end;
+    }
+    .drawer-backdrop.open { display: flex; }
+    .drawer {
+      width: min(480px, 100vw); background: #fff; height: 100%;
+      display: flex; flex-direction: column; box-shadow: var(--shadow-lg);
+      animation: slideLeft 0.2s ease;
+    }
+    @keyframes slideLeft { from { transform: translateX(100%); } to { transform: translateX(0); } }
+    .drawer-header {
+      padding: 14px 18px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+      background: var(--surface-2);
+    }
+    .drawer-body { padding: 14px 18px; flex: 1; overflow-y: auto; }
+    .drawer-footer { padding: 14px 18px; border-top: 1px solid var(--border); background: var(--surface-2); }
+
+    /* Modal */
+    .modal-backdrop {
+      position: fixed; inset: 0; background: rgba(10, 25, 15, 0.5);
+      z-index: 90; display: none; align-items: center; justify-content: center; padding: 16px;
+    }
+    .modal-backdrop.open { display: flex; }
+    .modal {
+      background: #fff; border-radius: var(--radius); width: min(680px, 100%);
+      max-height: 92vh; display: flex; flex-direction: column; box-shadow: var(--shadow-lg);
+    }
+    .modal-sm { width: min(430px, 100%); }
+    .modal-lg { width: min(900px, 100%); }
+    .modal-header {
+      padding: 14px 18px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .modal-body { padding: 16px 18px; overflow-y: auto; }
+    .modal-footer {
+      padding: 12px 18px; border-top: 1px solid var(--border);
+      display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap;
+    }
+
+    /* Rate Pills & Thumbnails */
+    .rate-pills { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 3px; }
+    .rate-pill {
+      padding: 1px 6px; border-radius: 4px; font-size: 0.72rem; font-weight: 600;
+      border: 1px solid var(--border); background: #fff; color: var(--muted);
+    }
+    .rate-pill.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+    .item-thumb {
+      width: 38px; height: 38px; border-radius: 8px; object-fit: cover;
+      border: 1px solid var(--border); flex-shrink: 0;
+    }
+
+    /* Notes & Gallery Grids */
+    .notes-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 14px; }
+    .note-card {
+      background: #fffdf5; border: 1px solid #eadfb8; border-radius: var(--radius);
+      padding: 14px; display: flex; flex-direction: column; gap: 8px; position: relative;
+    }
+    .note-card.pinned { border-color: var(--primary); background: #f3faf5; }
+
+    .gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 14px; }
+    .bill-card {
+      border: 1px solid var(--border); border-radius: var(--radius);
+      overflow: hidden; background: #fff; box-shadow: var(--shadow);
+    }
+    .bill-card img { width: 100%; height: 170px; object-fit: cover; cursor: pointer; display: block; }
+
+    .care-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(310px, 1fr)); gap: 14px; }
+
+    /* Toast */
+    .toast-box {
+      position: fixed; bottom: 20px; right: 20px; z-index: 120;
+      display: flex; flex-direction: column; gap: 8px; max-width: 360px;
+    }
+    .toast {
+      background: #132a1c; color: #fff; padding: 11px 15px;
+      border-radius: 10px; font-size: 0.88rem; box-shadow: var(--shadow-lg);
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    }
+    .toast.error { background: #991b1b; }
+    .toast.warn { background: #92400e; }
+
+    .split-box {
+      background: var(--primary-light); border: 1px solid #b8dec6;
+      border-radius: var(--radius-sm); padding: 12px;
+    }
+
+    .sidebar-overlay {
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 35;
+    }
+
+    @media (max-width: 960px) {
+      .sidebar { transform: translateX(-100%); }
+      .sidebar.open { transform: translateX(0); }
+      .sidebar-overlay.open { display: block; }
+      .main-area { margin-left: 0; }
+      .menu-toggle { display: inline-flex; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar(false)"></div>
+
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-brand">
+        <div class="brand-logo">🌿</div>
+        <div>
+          <div class="brand-title" id="sidebarNurseryName">Sach Nursery</div>
+          <div class="brand-sub">Bilingual Nursery ERP</div>
+        </div>
+      </div>
+
+      <nav class="nav-list" id="navList"></nav>
+
+      <div class="sidebar-footer">
+        <span id="sidebarDate">--/--/----</span>
+        <span class="badge badge-green" id="lockDaysBadge">10d Auto-Lock</span>
+      </div>
+    </aside>
+
+    <div class="main-area">
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="menu-toggle" onclick="toggleSidebar(true)" title="Menu">☰</button>
+          <div>
+            <div class="page-title" id="pageTitle">Dashboard</div>
+            <div style="font-size:0.75rem;color:var(--muted)" id="pageSubTitle">Real-time overview & controls</div>
+          </div>
+        </div>
+
+        <div class="topbar-actions">
+          <button class="btn btn-outline btn-sm" onclick="openQuickSaleModal()">⚡ Quick Sale</button>
+          <button class="btn btn-primary btn-sm" onclick="toggleCartDrawer(true)">
+            🛒 Cart (<span id="cartCountBadge">0</span>)
+          </button>
+          <button class="btn btn-outline btn-sm" onclick="navigate('settings')">⚙️ Settings</button>
+        </div>
+      </header>
+
+      <main class="content" id="mainContent"></main>
+    </div>
+  </div>
+
+  <!-- Persistent Cart Drawer -->
+  <div class="drawer-backdrop" id="cartBackdrop" onclick="if(event.target===this) toggleCartDrawer(false)">
+    <div class="drawer">
+      <div class="drawer-header">
+        <div>
+          <strong style="font-size:1.05rem;">🛒 Sale Cart & Bulk Checkout</strong>
+          <div style="font-size:0.76rem;color:var(--muted);">Multi-item billing, discounts & split payment</div>
+        </div>
+        <button class="btn btn-outline btn-sm" onclick="toggleCartDrawer(false)">✕</button>
+      </div>
+      <div class="drawer-body" id="cartBody"></div>
+      <div class="drawer-footer" id="cartFooter"></div>
+    </div>
+  </div>
+
+  <!-- Generic Modal -->
+  <div class="modal-backdrop" id="modalBackdrop" onclick="if(event.target===this) closeModal()">
+    <div class="modal" id="modalBox">
+      <div class="modal-header">
+        <strong id="modalTitle" style="font-size:1.05rem;">Modal</strong>
+        <button class="btn btn-outline btn-sm" onclick="closeModal()">✕</button>
+      </div>
+      <div class="modal-body" id="modalBody"></div>
+      <div class="modal-footer" id="modalFooter"></div>
+    </div>
+  </div>
+
+  <!-- Password / OTP Verification Modal -->
+  <div class="modal-backdrop" id="authModalBackdrop">
+    <div class="modal modal-sm">
+      <div class="modal-header">
+        <strong id="authModalTitle">🔒 Master Password Verification</strong>
+        <button class="btn btn-outline btn-sm" onclick="resolveAuthModal(false)">✕</button>
+      </div>
+      <div class="modal-body" id="authModalBody"></div>
+      <div class="modal-footer" id="authModalFooter"></div>
+    </div>
+  </div>
+
+  <div class="toast-box" id="toastBox"></div>
+
+<script>
+/* ============================================================================
+   DATE HELPERS — STRICT DD-MM-YYYY ENFORCEMENT
+============================================================================ */
+function pad2(n) { return String(n).padStart(2, '0'); }
+
+function formatDateDDMMYYYY(d = new Date()) {
+  if (typeof d === 'string') {
+    if (/^\d{2}-\d{2}-\d{4}$/.test(d)) return d;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(d)) {
+      const [y, m, day] = d.split('-');
+      return `${day}-${m}-${y}`;
+    }
+    d = new Date(d);
+  }
+  if (isNaN(d.getTime())) return '';
+  return `${pad2(d.getDate())}-${pad2(d.getMonth() + 1)}-${d.getFullYear()}`;
+}
+
+function formatDateTimeDDMMYYYY(d = new Date()) {
+  const dt = (d instanceof Date) ? d : new Date(d);
+  if (isNaN(dt.getTime())) return '';
+  return `${formatDateDDMMYYYY(dt)} ${pad2(dt.getHours())}:${pad2(dt.getMinutes())}`;
+}
+
+function parseDDMMYYYY(str) {
+  if (!str || !/^\d{2}-\d{2}-\d{4}$/.test(str.trim())) return null;
+  const [dd, mm, yyyy] = str.trim().split('-').map(Number);
+  const dt = new Date(yyyy, mm - 1, dd);
+  if (dt.getFullYear() !== yyyy || dt.getMonth() !== mm - 1 || dt.getDate() !== dd) return null;
+  dt.setHours(0, 0, 0, 0);
+  return dt;
+}
+
+function ddmmyyyyToISO(str) {
+  const dt = parseDDMMYYYY(str);
+  if (!dt) return '';
+  return `${dt.getFullYear()}-${pad2(dt.getMonth() + 1)}-${pad2(dt.getDate())}`;
+}
+
+function isoToDDMMYYYY(iso) {
+  if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return '';
+  const [y, m, d] = iso.split('-');
+  return `${d}-${m}-${y}`;
+}
+
+function addDaysDDMMYYYY(baseStr, deltaDays) {
+  const dt = parseDDMMYYYY(baseStr) || new Date();
+  dt.setDate(dt.getDate() + deltaDays);
+  return formatDateDDMMYYYY(dt);
+}
+
+function isOlderThan10Days(ddmmyyyy) {
+  const recDate = parseDDMMYYYY(ddmmyyyy);
+  if (!recDate) return false;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const diffDays = (today.getTime() - recDate.getTime()) / (1000 * 60 * 60 * 24);
+  return diffDays > 10;
+}
+
+function isDateInRange(dateStr, fromStr, toStr) {
+  const d = parseDDMMYYYY(dateStr);
+  if (!d) return false;
+  if (fromStr) {
+    const f = parseDDMMYYYY(fromStr);
+    if (f && d < f) return false;
+  }
+  if (toStr) {
+    const t = parseDDMMYYYY(toStr);
+    if (t && d > t) return false;
+  }
+  return true;
+}
+
+function renderDateField(id, valueDDMMYYYY, onChangeExpr = '') {
+  const iso = ddmmyyyyToISO(valueDDMMYYYY);
+  return `
+    <div class="date-ddmmyyyy-wrap">
+      <input type="text" class="input" id="${id}" value="${esc(valueDDMMYYYY)}"
+             placeholder="DD-MM-YYYY" maxlength="10"
+             onchange="handleMaskedDateChange('${id}', '${id}_native'); ${onChangeExpr}" />
+      <input type="date" class="hidden-native-date" id="${id}_native" value="${iso}"
+             onchange="document.getElementById('${id}').value = isoToDDMMYYYY(this.value); ${onChangeExpr}" />
+      <button type="button" class="date-picker-btn" title="Pick Date (DD-MM-YYYY)"
+              onclick="const el=document.getElementById('${id}_native'); if(el.showPicker){el.showPicker();}else{el.click();}">📅</button>
+    </div>
+  `;
+}
+
+function handleMaskedDateChange(textId, nativeId) {
+  const el = document.getElementById(textId);
+  const parsed = parseDDMMYYYY(el.value);
+  if (!parsed) {
+    toast('Invalid date. Strictly use DD-MM-YYYY (e.g., 24-11-2026)', 'error');
+    el.value = formatDateDDMMYYYY();
+  } else {
+    el.value = formatDateDDMMYYYY(parsed);
+  }
+  const nat = document.getElementById(nativeId);
+  if (nat) nat.value = ddmmyyyyToISO(el.value);
+}
+
+/* ============================================================================
+   UTILITIES & SECURITY
+============================================================================ */
+function esc(v) {
+  return String(v ?? '').replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  })[c]);
+}
+
+function uid(prefix = 'id') {
+  return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
+}
+
+function money(n) {
+  const num = Number(n) || 0;
+  return '₹' + num.toLocaleString('en-IN', { minimumFractionDigits: num % 1 ? 2 : 0, maximumFractionDigits: 2 });
+}
+
+function toast(msg, type = 'ok') {
+  const box = document.getElementById('toastBox');
+  const el = document.createElement('div');
+  el.className = `toast ${type === 'error' ? 'error' : type === 'warn' ? 'warn' : ''}`;
+  el.innerHTML = `<span>${esc(msg)}</span>`;
+  box.appendChild(el);
+  setTimeout(() => { el.remove(); }, 3600);
+}
+
+function compressImageFile(file, maxW = 720, quality = 0.68) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(1, maxW / img.width);
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+/* ============================================================================
+   INITIAL SEED DATA — ALL 5 SHEETS + SUPPLIES + SCIENTIFIC PLANT CARE
+============================================================================ */
+const DEFAULT_CATEGORIES = [
+  { id: 'herbs', nameEn: 'Herbs & Medicinal', nameHi: 'जड़ी बूटी', predefined: true },
+  { id: 'trees', nameEn: 'Trees', nameHi: 'दरखत', predefined: true },
+  { id: 'flowers', nameEn: 'Flowers', nameHi: 'फुल', predefined: true },
+  { id: 'fruits', nameEn: 'Fruits', nameHi: 'फल', predefined: true },
+  { id: 'ornamentals', nameEn: 'Ornamental (Indoor+Outdoor)', nameHi: 'सजावटी', predefined: true },
+  { id: 'supplies', nameEn: 'Pots, Soil & Supplies', nameHi: 'गमले, खाद और सामान', predefined: true }
+];
+
+function mkItem(id, category, nameHi, nameEn, variety, rates, stock = 20, threshold = 10) {
+  const rateArr = Array.isArray(rates) ? rates : [rates];
+  return {
+    id,
+    category,
+    nameHi,
+    nameEn,
+    variety: variety || '',
+    rate: rateArr[0],
+    rateOptions: rateArr,
+    stock,
+    threshold,
+    photo: '' // No placeholder stock photos! Only user-uploaded photos.
+  };
+}
+
+function buildInitialCatalog() {
+  const list = [];
+  // Sheet 1: जड़ी बूटी (18 items)
+  const herbs = [
+    ['तेज पत्ता', 'Bay Leaf (Tej Patta)', [150], 20],
+    ['लैमनग्रास', 'Lemongrass', [50], 20],
+    ['इलाइची', 'Cardamom (Elaichi)', [150], 18],
+    ['लौंग', 'Clove (Laung)', [150], 15],
+    ['मैक्स मसाला', 'Allspice (Max Masala)', [150], 15],
+    ['सुहंजना', 'Moringa (Drumstick)', [50, 100], 25],
+    ['करीपत्ता', 'Curry Leaf (Kadi Patta)', [50, 100], 25],
+    ['तुलसी', 'Holy Basil (Tulsi)', [50], 8], // Low stock demo item
+    ['हार शिंगार', 'Night Jasmine (Parijat)', [50], 20],
+    ['कचनार', 'Kachnar (Orchid Tree)', [50, 100], 18],
+    ['अर्जन', 'Arjuna Tree (Arjun)', [100], 18],
+    ['अमलतास', 'Amaltas (Golden Shower)', [50], 20],
+    ['सफेद आक', 'White Crown Flower (Safed Aak)', [50], 15],
+    ['एलोवेरा', 'Aloe Vera', [50, 100], 7], // Low stock demo item
+    ['पत्थर चट्ट', 'Bryophyllum (Patharchatta)', [50, 100], 20],
+    ['अश्वगंधा', 'Ashwagandha', [50, 100], 20],
+    ['सतावर', 'Shatavari', [100], 18],
+    ['सुखदर्शन', 'Crinum Lily (Sukhdarshan)', [100], 16]
+  ];
+  herbs.forEach((h, i) => list.push(mkItem(`herb_${i+1}`, 'herbs', h[0], h[1], '', h[2], h[3])));
+
+  // Sheet 2: दरखत (19 items)
+  const trees = [
+    ['बड़', 'Banyan Tree (Bargad)', [100], 20],
+    ['पीपल', 'Sacred Fig (Peepal)', [100], 20],
+    ['शीशम', 'Indian Rosewood (Sheesham)', [100], 25],
+    ['बार्केन', 'Bakain (Chinaberry)', [100], 20],
+    ['डेक', 'Dek (Bead Tree)', [100], 20],
+    ['पिलखन', 'White Fig (Pilkhan)', [100], 18],
+    ['गुलमोहर', 'Gulmohar (Flame Tree)', [300], 15],
+    ['चंदन सफेद', 'White Sandalwood', [200], 15],
+    ['चंदन लाल', 'Red Sandalwood', [200], 15],
+    ['शमी पत्र', 'Shami Tree (Khejri)', [100], 22],
+    ['सफेदा', 'Eucalyptus (Safeda)', [50], 30],
+    ['सागवान', 'Teak Wood (Sagwan)', [100], 25],
+    ['लार्जेस टोनीय', 'Lagerstroemia (Pride of India)', [100], 18],
+    ['अमृत पीपल', 'Amrit Peepal', [100], 15],
+    ['तून', 'Toon (Red Cedar)', [100], 15],
+    ['चीड़', 'Pine Tree (Chir)', [150], 15],
+    ['मोहगणी', 'Mahogany', [100], 20],
+    ['ढाक', 'Palash (Dhak)', [100], 18],
+    ['कदम', 'Kadamba (Kadam)', [100], 18]
+  ];
+  trees.forEach((t, i) => list.push(mkItem(`tree_${i+1}`, 'trees', t[0], t[1], '', t[2], t[3])));
+
+  // Sheet 3: फुल (31 items)
+  const flowers = [
+    ['गुलाब देशी', 'Desi Rose', [50], 8], // Low stock demo item
+    ['गुलाब हाइब्रिड', 'Hybrid Rose', [100], 24],
+    ['यू फॉर विया', 'Euphorbia Milii', [100], 20],
+    ['कलेन्चु', 'Kalanchoe', [100], 20],
+    ['कैक्टस', 'Cactus', [100], 22],
+    ['रात की रानी', 'Night Blooming Jasmine', [50], 25],
+    ['गुड़हल', 'Hibiscus (Gudhal)', [100], 25],
+    ['चांदनी', 'Crepe Jasmine (Chandni)', [50], 25],
+    ['बुगन बेल', 'Bougainvillea', [100], 20],
+    ['मोतिया', 'Arabian Jasmine (Motia/Mogra)', [50], 25],
+    ['रजनी गन्धा', 'Tuberose (Rajnigandha)', [50], 25],
+    ['मधुकामनी', 'Orange Jasmine (Madhukamini)', [50], 22],
+    ['मिनी चांदनी', 'Mini Chandni', [50], 25],
+    ['रेन लिली', 'Rain Lily', [50], 30],
+    ['नीलम', 'Bluebell (Neelam)', [50], 20],
+    ['कलेन्डरा', 'Calliandra (Powder Puff)', [50], 18],
+    ['जाकरेंडा', 'Jacaranda', [100], 16],
+    ['चम्पा', 'Plumeria (Champa)', [100], 20],
+    ['कनेर', 'Oleander (Kaner)', [100], 22],
+    ['हमीलिया', 'Hamelia (Firebush)', [50], 20],
+    ['लालटीना', 'Lantana', [50], 25],
+    ['चेमेली', 'Jasmine (Chameli)', [50], 22],
+    ['टिकोमा', 'Tecoma', [100], 20],
+    ['दिन का राजा', 'Day Blooming Jasmine', [50], 20],
+    ['मुराइया', 'Murraya', [50], 20],
+    ['गंधराज', 'Gardenia (Gandhraj)', [150], 16],
+    ['एगजोरा', 'Ixora', [150], 18],
+    ['प्राजीत वेल', 'Butterfly Pea Vine (Aparajita)', [50], 22],
+    ['झुमका वेल', 'Rangoon Creeper (Jhumka Bel)', [100], 18],
+    ['बूगन वेल', 'Bougainvillea Vine', [100], 20],
+    ['लहसुन वेल', 'Garlic Vine', [100], 16]
+  ];
+  flowers.forEach((f, i) => list.push(mkItem(`flw_${i+1}`, 'flowers', f[0], f[1], '', f[2], f[3])));
+
+  // Sheet 4: फल (All 39 fruits / 55 variety rows)
+  const fruits = [
+    ['आम', 'Mango', 'अमरपाली / Amrapali', [500, 800], 18],
+    ['आम', 'Mango', 'मिया याकी / Miyazaki', [600], 12],
+    ['आम', 'Mango', 'राम केला / Ramkela', [500], 15],
+    ['आम', 'Mango', 'दुशेरी / Dasheri', [500], 20],
+    ['आम', 'Mango', '12मासी / Baramasi', [400], 20],
+    ['मौसमी', 'Sweet Lime (Mosambi)', 'अरली / Early', [150], 22],
+    ['किन्नु', 'Kinnow', 'स्टैंडर्ड / Standard', [200, 300], 20],
+    ['किन्नु', 'Kinnow', 'डेजी / Daisy', [200], 18],
+    ['चीकू', 'Sapota (Chikoo)', 'क्रिकेट बॉल / Cricket Ball', [150], 20],
+    ['चीकू', 'Sapota (Chikoo)', 'काली पत्ती / Kalipatti', [400], 15],
+    ['गलगल', 'Hill Lemon (Galgal)', '', [200], 18],
+    ['अमरूद', 'Guava', 'थाई पिंक / Thai Pink', [150, 500], 22],
+    ['अमरूद', 'Guava', 'L 49 / Lucknow 49', [150], 25],
+    ['अमरूद', 'Guava', '1 Kg / 1 Kg Guava', [150], 20],
+    ['अमरूद', 'Guava', 'ब्लैक / Black Guava', [200], 16],
+    ['अमरूद', 'Guava', 'हिसार सफेदा / Hisar Safeda', [150], 20],
+    ['अमरूद', 'Guava', 'इलाहाबादी / Allahabadi', [150], 22],
+    ['केला', 'Banana', 'G 9 / Grand Naine', [150], 25],
+    ['जामुन', 'Java Plum (Jamun)', 'K 10', [400], 14],
+    ['जामुन', 'Java Plum (Jamun)', 'व्हाइट / White', [300], 15],
+    ['जामुन', 'Java Plum (Jamun)', 'ब्लैक / Black', [150], 20],
+    ['माल्टा', 'Malta Orange', '', [150], 20],
+    ['आड़ू', 'Peach', 'शाने पंजाब / Shan-e-Punjab', [150], 18],
+    ['आड़ू', 'Peach', 'प्रबात / Prabhat', [150], 18],
+    ['सेब', 'Apple', 'हरमन 99 / HRMN-99', [200], 16],
+    ['आलूबुखारा', 'Plum (Aloobukhara)', '', [150], 18],
+    ['निम्बू', 'Lemon', 'कलकत्ता (कागजी) / Calcutta Kagzi', [300], 20],
+    ['निम्बू', 'Lemon', '12 मासी / Baramasi', [150], 9], // Low stock demo item
+    ['बेरी', 'Jujube (Ber)', 'संदूरी / Sundari', [150], 20],
+    ['बेरी', 'Jujube (Ber)', 'ग्रीन एप्पल / Green Apple', [150], 20],
+    ['शहतूत', 'Mulberry (Shahtoot)', '', [150, 300], 18],
+    ['अनार', 'Pomegranate', 'भगवा (संदुरी) / Bhagwa Sindoori', [150], 25],
+    ['आंवला', 'Indian Gooseberry (Amla)', 'चुकाईआ / Chakaiya', [150], 20],
+    ['नाशपाती', 'Pear', '', [150], 18],
+    ['अंजीर', 'Fig (Anjeer)', '', [150], 18],
+    ['चैरी', 'Cherry', '', [150], 16],
+    ['बेलगिरी', 'Wood Apple (Bael)', '', [150], 20],
+    ['अलुचा', 'Aloocha Plum', '', [150], 18],
+    ['संतरा', 'Orange', 'नागपुरी / Nagpuri', [150], 22],
+    ['खजूर', 'Date Palm', '', [400], 14],
+    ['बब्बू गोशा', 'Babugosha Pear', '', [150], 18],
+    ['अंगूर', 'Grapes', '', [150], 20],
+    ['लिची', 'Lychee', '', [300], 16],
+    ['बदाम', 'Almond', 'गुरबंदी / Gurbandi', [200], 16],
+    ['स्टार फ्रूट', 'Star Fruit', '', [150], 16],
+    ['कटहल', 'Jackfruit (Kathal)', '', [150], 20],
+    ['खुमानी', 'Apricot (Khumani)', '', [150], 16],
+    ['करोंदा', 'Karonda', '', [50], 25],
+    ['एवोकाडो', 'Avocado', '', [300], 14],
+    ['लोकाट', 'Loquat', '', [300], 15],
+    ['इमली', 'Tamarind (Imli)', '', [100], 20],
+    ['पपीता', 'Papaya', '', [50], 30],
+    ['सीताफल (शरीफा)', 'Custard Apple (Sharifa)', '', [100], 22],
+    ['ड्रेगन फ्रूट', 'Dragon Fruit', '', [100], 24],
+    ['फालसा', 'Phalsa', '', [100], 20]
+  ];
+  fruits.forEach((fr, i) => list.push(mkItem(`frt_${i+1}`, 'fruits', fr[0], fr[1], fr[2], fr[3], fr[4])));
+
+  // Sheet 5: सजावटी (38 items)
+  const orn = [
+    ['एरोकेरिया', 'Araucaria (Christmas Tree)', [150], 18],
+    ['मनी प्लांट', 'Money Plant (Pothos)', [50, 100], 30],
+    ['स्नेक प्लांट', 'Snake Plant (Sansevieria)', [100], 25],
+    ['यूका', 'Yucca', [150], 18],
+    ['ड्रैसेना', 'Dracaena', [150], 20],
+    ['साइप्रस', 'Cypress', [150], 18],
+    ['पेंड्रानुष', 'Pandanus', [150], 18],
+    ['क्रोटन बजरीपा', 'Croton Bajripa', [100], 22],
+    ['अंब्रेला (सलफेरा)', 'Umbrella Plant (Schefflera)', [150], 20],
+    ['पेट्रा क्रोटन', 'Petra Croton', [150], 20],
+    ['डिफन पेसिया', 'Dieffenbachia', [150], 18],
+    ['लैला मजनू', 'Laila Majnu (Excoecaria)', [50], 25],
+    ['सांग ऑफ इंडिया', 'Song of India', [100], 22],
+    ['ग्रीन सांग ऑफ इंडिया', 'Green Song of India', [100], 20],
+    ['खरसुला', 'Jade Plant (Crassula)', [100], 25],
+    ['एरिका पाम', 'Areca Palm', [150], 22],
+    ['फीनिक्स पाम', 'Phoenix Palm', [150], 18],
+    ['मटका पाम', 'Matka Palm', [150], 18],
+    ['फिंगर पाम', 'Finger Palm (Rhapis)', [100], 20],
+    ['बोतल पाम', 'Bottle Palm', [200], 16],
+    ['फिश टेल पाम', 'Fishtail Palm', [150], 18],
+    ['आरी पाम', 'Saw Palm (Aari Palm)', [150], 18],
+    ['साईकस पाम', 'Cycas (Sago Palm)', [400], 14],
+    ['मटका पाम (स्पेशल)', 'Matka Palm (Special)', [150], 16],
+    ['अशोक', 'Ashoka Tree (Polyalthia)', [150], 25],
+    ['टर्मेलिया', 'Terminalia', [500], 12],
+    ['वाशिंग टोनिया', 'Washingtonia Palm', [200], 16],
+    ['फाइकस', 'Ficus', [150, 200], 24],
+    ['मोरपंखी', 'Thuja (Morpankhi)', [150], 25],
+    ['रबर प्लांट', 'Rubber Plant', [200], 20],
+    ['पेंसिल पाम', 'Pencil Palm', [150], 18],
+    ['लोटस', 'Lotus', [50], 20],
+    ['फार्केरिया', 'Furcraea', [100], 18],
+    ['लक्की बम्बू', 'Lucky Bamboo', [150], 25],
+    ['बोतल ब्रश', 'Bottlebrush', [50], 22],
+    ['कोनो कारपस', 'Conocarpus', [100], 25],
+    ['फोस्टल पाम', 'Foxtail Palm', [400, 800], 15],
+    ['हैज्ज', 'Hedge Plant', [25], 50]
+  ];
+  orn.forEach((o, i) => list.push(mkItem(`orn_${i+1}`, 'ornamentals', o[0], o[1], '', o[2], o[3])));
+
+  // Predefined Supplies
+  const supplies = [
+    ['वर्मी कम्पोस्ट (5 Kg)', 'Vermicompost (5 Kg)', [120], 30],
+    ['कोकोपीट ब्लॉक (1 Kg)', 'Cocopeat Block (1 Kg)', [90], 25],
+    ['टेराकोटा गमला (10 इंच)', 'Terracotta Pot (10 inch)', [100], 25],
+    ['प्लास्टिक गमला (12 इंच)', 'Plastic Pot (12 inch)', [80], 30],
+    ['नीम खली (1 Kg)', 'Neem Cake Fertilizer (1 Kg)', [80], 20],
+    ['गार्डन प्रूनर / कटर', 'Garden Secateur / Pruner', [250], 15]
+  ];
+  supplies.forEach((s, i) => list.push(mkItem(`sup_${i+1}`, 'supplies', s[0], s[1], '', s[2], s[3])));
+
+  return list;
+}
+
+const INITIAL_PLANT_CARE = [
+  {
+    id: 'care_mango',
+    nameEn: 'Mango (All Varieties)',
+    nameHi: 'आम (सभी किस्में)',
+    botanical: 'Mangifera indica',
+    category: 'fruits',
+    sunlight: 'Full Sun (6–8+ hours direct sunlight daily)',
+    watering: 'Deep watering every 4–6 days in summer; reduce in winter & before flowering to induce bloom.',
+    soil: 'Deep well-drained loamy soil, ideal pH 5.5–7.5.',
+    fertilizer: 'FYM/Vermicompost + NPK 10:10:10 twice a year (Feb & post-monsoon); Boron/Zinc spray before flowering.',
+    pruning: 'Light pruning after harvest to open canopy & remove dead wood.',
+    pests: 'Mango Hopper, Mealybug, Powdery Mildew -> Neem Oil (3ml/L) + Imidacloprid / Wettable Sulphur.'
+  },
+  {
+    id: 'care_rose',
+    nameEn: 'Rose (Desi & Hybrid)',
+    nameHi: 'गुलाब (देशी व हाइब्रिड)',
+    botanical: 'Rosa indica / Rosa hybrida',
+    category: 'flowers',
+    sunlight: 'Full Morning Sun (5–6 hours minimum)',
+    watering: 'Water deeply at soil base every 2–3 days; avoid wetting leaves at night.',
+    soil: '40% Garden Soil + 30% Vermicompost + 20% Cocopeat + 10% Sand, pH 6.0–6.8.',
+    fertilizer: 'Rose Mix / Bone Meal + Banana Peel / NPK 19:19:19 every 15 days during active bloom.',
+    pruning: 'Hard prune in October–November; deadhead spent blooms weekly.',
+    pests: 'Aphids, Thrips, Black Spot -> Neem oil spray weekly; Copper Oxychloride for fungal spots.'
+  },
+  {
+    id: 'care_tulsi',
+    nameEn: 'Holy Basil (Tulsi)',
+    nameHi: 'तुलसी',
+    botanical: 'Ocimum tenuiflorum',
+    category: 'herbs',
+    sunlight: 'Bright Sun (4–6 hours); protect from severe winter frost.',
+    watering: 'Keep topsoil lightly moist (water every 1–2 days in summer), ensure pot drainage.',
+    soil: 'Fertile porous loamy mix with cocopeat, pH 6.0–7.5.',
+    fertilizer: 'Cow dung compost / Vermicompost once a month; avoid heavy synthetic chemicals.',
+    pruning: 'Pinch flower spikes (Manjari) regularly to promote bushy leaf growth.',
+    pests: 'Mealybugs & Leaf Curl -> Mild Neem soap solution spray.'
+  },
+  {
+    id: 'care_aloe',
+    nameEn: 'Aloe Vera',
+    nameHi: 'एलोवेरा',
+    botanical: 'Aloe barbadensis miller',
+    category: 'herbs',
+    sunlight: 'Bright indirect to morning sun (3–5 hours); harsh noon sun turns leaves brown.',
+    watering: 'Soak & Dry method: water only when top 2 inches of soil are completely dry (every 7–12 days).',
+    soil: 'Sandy cactus/succulent mix (50% Sand/Perlite + 30% Soil + 20% Compost), pH 6.0–8.0.',
+    fertilizer: 'Minimal—light vermicompost once every 3 months in spring/summer.',
+    pruning: 'Harvest outer mature leaves cleanly near base; separate pups for propagation.',
+    pests: 'Root Rot (overwatering) & Scale insects -> Reduce water, use well-draining pot.'
+  },
+  {
+    id: 'care_guava',
+    nameEn: 'Guava (Thai Pink / L-49)',
+    nameHi: 'अमरूद (थाई पिंक / L-49)',
+    botanical: 'Psidium guajava',
+    category: 'fruits',
+    sunlight: 'Full Sunlight (6+ hours daily)',
+    watering: 'Regular watering during fruit set; moderate watering in winter.',
+    soil: 'Adaptable sandy loam to clay loam, pH 5.5–7.5.',
+    fertilizer: 'Vermicompost + Potash + Micronutrients during Bahar season (Feb & July).',
+    pruning: 'Tip-prune young shoots to encourage lateral fruiting branches; bag fruits against fruit fly.',
+    pests: 'Fruit Fly & Wilt -> Pheromone traps + Trichoderma in soil.'
+  },
+  {
+    id: 'care_areca',
+    nameEn: 'Areca Palm & Indoor Palms',
+    nameHi: 'एरिका पाम व इनडोर पाम',
+    botanical: 'Dypsis lutescens',
+    category: 'ornamentals',
+    sunlight: 'Bright Filtered / Indirect Light (avoid scorching afternoon sun).',
+    watering: 'Water when top 1 inch dries; mist leaves weekly; never let water stagnate.',
+    soil: 'Light aerated mix (Cocopeat + Perlite/Sand + Compost), pH 6.0–6.5.',
+    fertilizer: 'Balanced liquid NPK 19:19:19 (diluted) or Seaweed extract monthly in growing season.',
+    pruning: 'Trim only completely brown fronds at base; do not cut green tips.',
+    pests: 'Spider Mites & Brown Tips (fluoride/dry air) -> Use rainwater/RO if possible + Neem mist.'
+  },
+  {
+    id: 'care_snake',
+    nameEn: 'Snake Plant / Jade / Succulents',
+    nameHi: 'स्नेक प्लांट / खरसुला',
+    botanical: 'Dracaena trifasciata / Crassula ovata',
+    category: 'ornamentals',
+    sunlight: 'Low to bright indirect light (Snake Plant); bright morning sun (Jade).',
+    watering: 'Every 10–15 days indoors; check soil moisture deeply before watering.',
+    soil: 'Fast-draining gritty mix with coarse sand/perlite.',
+    fertilizer: 'Mild compost tea once in spring and monsoon.',
+    pruning: 'Remove yellowing lower leaves; propagates easily via leaf/stem cuttings.',
+    pests: 'Mealybugs -> Rubbing alcohol + water swab.'
+  },
+  {
+    id: 'care_lemon',
+    nameEn: 'Citrus (Lemon / Kinnow / Mosambi)',
+    nameHi: 'निम्बू / किन्नु / मौसमी',
+    botanical: 'Citrus limon / Citrus reticulata',
+    category: 'fruits',
+    sunlight: 'Full Direct Sunlight (6–8 hours)',
+    watering: 'Consistent moisture during flowering & fruiting; avoid waterlogging.',
+    soil: 'Well-drained loamy soil, pH 5.5–6.5.',
+    fertilizer: 'Citrus Micronutrient (Zn, Fe, Mg) + Vermicompost + Mustard Cake liquid quarterly.',
+    pruning: 'Remove water sprouts below graft union & crossed inner branches.',
+    pests: 'Citrus Leaf Miner & Canker -> Neem oil at new flush + Copper fungicide.'
+  },
+  {
+    id: 'care_hibiscus',
+    nameEn: 'Hibiscus & Bougainvillea',
+    nameHi: 'गुड़हल और बुगन बेल',
+    botanical: 'Hibiscus rosa-sinensis / Bougainvillea',
+    category: 'flowers',
+    sunlight: 'Full Sun (5–7 hours) for abundant flowering.',
+    watering: 'Hibiscus: regular moisture; Bougainvillea: allow slight drying between waterings to boost blooms.',
+    soil: 'Well-drained nutrient-rich loam, pH 6.0–7.0.',
+    fertilizer: 'Potash-rich organic fertilizer (DAP/Potash or Banana peel + Vermicompost) biweekly.',
+    pruning: 'Prune post-winter to shape and stimulate fresh flowering tips.',
+    pests: 'Whiteflies & Mealybugs -> Neem oil + mild soap spray.'
+  },
+  {
+    id: 'care_trees',
+    nameEn: 'Avenue & Timber Trees (Neem/Peepal/Sandalwood)',
+    nameHi: 'दरखत (पीपल, बड़, चंदन, सागवान)',
+    botanical: 'Ficus religiosa / Santalum album / Tectona grandis',
+    category: 'trees',
+    sunlight: 'Full Open Sunlight.',
+    watering: 'Frequent in Year 1 after transplanting; drought-hardy once established.',
+    soil: 'Deep natural soil; Sandalwood requires a host plant (like Arhar/Casuarina) for root hemiparasitism.',
+    fertilizer: 'Pit enrichment with Vermicompost + Neem Cake + Bone Meal at planting.',
+    pruning: 'Formative staking & lower branch clearing for straight trunk.',
+    pests: 'Termites -> Chlorpyrifos / Neem Cake drench around root zone.'
+  }
+];
+
+/* ============================================================================
+   STATE MANAGEMENT (LOCALSTORAGE)
+============================================================================ */
+const STORAGE_KEY = 'sach_nursery_erp_v1';
+
+function createDefaultState() {
+  const today = formatDateDDMMYYYY();
+  const twelveDaysAgo = addDaysDDMMYYYY(today, -12);
+  return {
+    settings: {
+      nurseryName: 'Sach Nursery',
+      ownerMobile: '9876543210',
+      masterPassword: btoa('1234'), // Default PIN: 1234 (displayed in Settings to customize)
+      isDefaultPassword: true
+    },
+    categories: JSON.parse(JSON.stringify(DEFAULT_CATEGORIES)),
+    catalog: buildInitialCatalog(),
+    sales: [
+      {
+        id: 'sale_demo_1',
+        billNo: 'SN-1001',
+        date: twelveDaysAgo,
+        createdAt: `${twelveDaysAgo} 11:20`,
+        customerName: 'Rajesh Sharma',
+        customerPhone: '9811223344',
+        items: [
+          { catalogId: 'frt_1', nameHi: 'आम', nameEn: 'Mango', variety: 'अमरपाली / Amrapali', qty: 2, unitRate: 500, discountType: 'flat', discountVal: 0, discountAmt: 0, total: 1000, isOpenItem: false }
+        ],
+        subtotal: 1000,
+        billDiscountType: 'flat',
+        billDiscountVal: 0,
+        billDiscountAmt: 0,
+        netTotal: 1000,
+        cashAmount: 600,
+        upiAmount: 400,
+        billPhoto: ''
+      },
+      {
+        id: 'sale_demo_2',
+        billNo: 'SN-1002',
+        date: today,
+        createdAt: formatDateTimeDDMMYYYY(),
+        customerName: 'Walk-in Customer',
+        customerPhone: '',
+        items: [
+          { catalogId: 'flw_1', nameHi: 'गुलाब देशी', nameEn: 'Desi Rose', variety: '', qty: 4, unitRate: 50, discountType: 'flat', discountVal: 0, discountAmt: 0, total: 200, isOpenItem: false },
+          { catalogId: 'orn_16', nameHi: 'एरिका पाम', nameEn: 'Areca Palm', variety: '', qty: 2, unitRate: 150, discountType: 'flat', discountVal: 0, discountAmt: 0, total: 300, isOpenItem: false }
+        ],
+        subtotal: 500,
+        billDiscountType: 'flat',
+        billDiscountVal: 0,
+        billDiscountAmt: 0,
+        netTotal: 500,
+        cashAmount: 200,
+        upiAmount: 300,
+        billPhoto: ''
+      }
+    ],
+    purchases: [
+      {
+        id: 'pur_demo_1',
+        billNo: 'PUR-201',
+        date: today,
+        createdAt: formatDateTimeDDMMYYYY(),
+        supplierName: 'Saharanpur Green Wholesale',
+        catalogId: 'herb_8',
+        itemName: 'तुलसी / Holy Basil (Tulsi)',
+        qty: 10,
+        unitCost: 25,
+        total: 250,
+        cashAmount: 250,
+        upiAmount: 0,
+        billPhoto: ''
+      }
+    ],
+    adjustments: [
+      {
+        id: 'adj_demo_1',
+        type: 'donation', // 'donation' | 'damage'
+        date: today,
+        createdAt: formatDateTimeDDMMYYYY(),
+        catalogId: 'tree_2',
+        itemName: 'पीपल / Sacred Fig (Peepal)',
+        qty: 2,
+        estimatedValue: 200,
+        reason: 'School Plantation Drive (Free Donation)'
+      }
+    ],
+    workers: [
+      { id: 'wrk_1', name: 'Ramesh Kumar', role: 'Head Mali (Gardener)', phone: '9876501122', dailyWage: 550, joinDate: twelveDaysAgo, active: true },
+      { id: 'wrk_2', name: 'Suresh Yadav', role: 'Nursery Helper & Watering', phone: '9876503344', dailyWage: 450, joinDate: twelveDaysAgo, active: true }
+    ],
+    attendance: [
+      { id: 'att_1', workerId: 'wrk_1', date: today, status: 'Present', timeIn: `${today} 08:00`, timeOut: `${today} 17:00`, hours: 9 },
+      { id: 'att_2', workerId: 'wrk_2', date: today, status: 'Present', timeIn: `${today} 08:30`, timeOut: `${today} 17:00`, hours: 8.5 }
+    ],
+    notes: [
+      {
+        id: 'note_1',
+        title: 'Morning Watering Check',
+        content: 'Check grafted Mango & Guava polybags in Polyhouse 2 before 10 AM.',
+        pinned: true,
+        locked: false,
+        createdAt: formatDateTimeDDMMYYYY(),
+        updatedAt: formatDateTimeDDMMYYYY()
+      }
+    ],
+    plantCare: JSON.parse(JSON.stringify(INITIAL_PLANT_CARE)),
+    bills: [] // Extra standalone bill photos if uploaded directly in Bill Gallery
+  };
+}
+
+let state = loadState();
+const unlockedRecordIds = new Set();
+let currentRoute = 'dashboard';
+let cart = [];
+let cartBillDiscountType = 'flat';
+let cartBillDiscountVal = 0;
+let cartCustomerName = '';
+let cartCustomerPhone = '';
+let cartCash = 0;
+let cartUpi = 0;
+let cartBillPhoto = '';
+let cartManualNetOverride = null;
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) {
+      const def = createDefaultState();
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(def));
+      return def;
+    }
+    const parsed = JSON.parse(raw);
+    return { ...createDefaultState(), ...parsed };
+  } catch (e) {
+    console.error(e);
+    return createDefaultState();
+  }
+}
+
+function saveState() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch (e) {
+    toast('Storage quota nearly full! Avoid uploading very large photos.', 'error');
+  }
+  updateHeaderBadges();
+}
+
+function updateHeaderBadges() {
+  document.getElementById('sidebarNurseryName').textContent = state.settings.nurseryName || 'Sach Nursery';
+  document.title = `${state.settings.nurseryName || 'Sach Nursery'} — Inventory & POS`;
+  document.getElementById('sidebarDate').textContent = formatDateDDMMYYYY();
+  const totalQty = cart.reduce((s, c) => s + (Number(c.qty) || 0), 0);
+  document.getElementById('cartCountBadge').textContent = totalQty;
+  renderNav();
+}
+
+/* ============================================================================
+   AUTH: MASTER PASSWORD & 10-DAY LOCK & OTP RESET
+============================================================================ */
+let authResolver = null;
+
+function verifyMasterPasswordInput(pw) {
+  return btoa(pw || '') === state.settings.masterPassword;
+}
+
+function requireMasterPassword(reason = 'This action requires Master Password verification.') {
+  return new Promise(resolve => {
+    authResolver = resolve;
+    document.getElementById('authModalTitle').textContent = '🔒 Master Password Required';
+    document.getElementById('authModalBody').innerHTML = `
+      <p style="font-size:0.88rem;color:var(--muted);margin-bottom:12px;">${esc(reason)}</p>
+      <div class="form-group">
+        <label class="label">Enter Master Password</label>
+        <input type="password" class="input" id="authPwInput" placeholder="Enter Master Password"
+               onkeydown="if(event.key==='Enter') submitAuthPassword()" />
+      </div>
+      ${state.settings.isDefaultPassword ? `<div class="badge badge-amber">Default PIN is 1234 (Change in Settings)</div>` : ''}
+    `;
+    document.getElementById('authModalFooter').innerHTML = `
+      <button class="btn btn-outline" onclick="resolveAuthModal(false)">Cancel</button>
+      <button class="btn btn-primary" onclick="submitAuthPassword()">Verify</button>
+    `;
+    document.getElementById('authModalBackdrop').classList.add('open');
+    setTimeout(() => document.getElementById('authPwInput')?.focus(), 60);
+  });
+}
+
+function submitAuthPassword() {
+  const val = document.getElementById('authPwInput').value;
+  if (verifyMasterPasswordInput(val)) {
+    resolveAuthModal(true);
+  } else {
+    toast('Incorrect Master Password!', 'error');
+    document.getElementById('authPwInput').value = '';
+    document.getElementById('authPwInput').focus();
+  }
+}
+
+function resolveAuthModal(ok) {
+  document.getElementById('authModalBackdrop').classList.remove('open');
+  if (authResolver) {
+    const fn = authResolver;
+    authResolver = null;
+    fn(ok);
+  }
+}
+
+async function ensureUnlockedRecord(recordId, recordDate, actionLabel = 'modify') {
+  if (!isOlderThan10Days(recordDate) || unlockedRecordIds.has(recordId)) return true;
+  const ok = await requireMasterPassword(`This record (${recordDate}) is older than 10 days and automatically locked. Enter Master Password to ${actionLabel}.`);
+  if (ok) unlockedRecordIds.add(recordId);
+  return ok;
+}
+
+/* ============================================================================
+   NAVIGATION
+============================================================================ */
+const NAV_ITEMS = [
+  { id: 'dashboard', label: 'Dashboard', icon: '📊' },
+  { id: 'inventory', label: 'Inventory & Catalog', icon: '🌱' },
+  { id: 'sales', label: 'Sales & POS Billing', icon: '🧾' },
+  { id: 'purchases', label: 'Purchases', icon: '📦' },
+  { id: 'adjustments', label: 'Stock Adjustments', icon: '⚖️' },
+  { id: 'workforce', label: 'Workers & Attendance', icon: '👷' },
+  { id: 'notes', label: 'Personal Notes', icon: '📝' },
+  { id: 'plantcare', label: 'Plant Care DB', icon: '🔬' },
+  { id: 'gallery', label: 'Bill Gallery', icon: '🖼️' },
+  { id: 'settings', label: 'Settings & Security', icon: '⚙️' }
+];
+
+function renderNav() {
+  const lowCount = state.catalog.filter(i => i.stock < i.threshold).length;
+  const nav = document.getElementById('navList');
+  nav.innerHTML = NAV_ITEMS.map(n => `
+    <button class="nav-btn ${currentRoute === n.id ? 'active' : ''}" onclick="navigate('${n.id}')">
+      <span>${n.icon}</span>
+      <span>${n.label}</span>
+      ${n.id === 'inventory' && lowCount > 0 ? `<span class="nav-badge">${lowCount}</span>` : ''}
+    </button>
+  `).join('');
+}
+
+function navigate(route) {
+  currentRoute = route;
+  toggleSidebar(false);
+  renderNav();
+  renderCurrentView();
+}
+
+function toggleSidebar(open) {
+  document.getElementById('sidebar').classList.toggle('open', open);
+  document.getElementById('sidebarOverlay').classList.toggle('open', open);
+}
+
+function getCategoryLabel(catId) {
+  const c = state.categories.find(x => x.id === catId);
+  return c ? `${c.nameHi} / ${c.nameEn}` : catId;
+}
+
+/* ============================================================================
+   MODAL HELPERS
+============================================================================ */
+function openModal(title, bodyHTML, footerHTML, size = '') {
+  const box = document.getElementById('modalBox');
+  box.className = `modal ${size}`;
+  document.getElementById('modalTitle').innerHTML = title;
+  document.getElementById('modalBody').innerHTML = bodyHTML;
+  document.getElementById('modalFooter').innerHTML = footerHTML;
+  document.getElementById('modalBackdrop').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('modalBackdrop').classList.remove('open');
+}
+
+/* ============================================================================
+   VIEW ROUTER
+============================================================================ */
+let dashFilterPreset = 'all'; // today, 7d, 30d, custom, all
+let dashFromDate = formatDateDDMMYYYY();
+let dashToDate = formatDateDDMMYYYY();
+
+let invSearch = '';
+let invCatFilter = 'all';
+let invLowOnly = false;
+
+let salesSearch = '';
+let adjTab = 'donation';
+let careSearch = '';
+let careCatFilter = 'all';
+let noteSearch = '';
+let galleryFilter = 'all';
+let attendanceDate = formatDateDDMMYYYY();
+let attendanceMonth = `${pad2(new Date().getMonth() + 1)}-${new Date().getFullYear()}`;
+let workerTab = 'attendance';
+
+function renderCurrentView() {
+  const titles = {
+    dashboard: ['Dashboard', 'Real-time revenue, Cash/UPI split, stock outflows & attendance'],
+    inventory: ['Inventory & Catalog', 'Bilingual stock table, custom thresholds, quick sale & cart'],
+    sales: ['Sales & POS Billing', 'Multi-item POS, open items, two-way Cash/UPI & WhatsApp bills'],
+    purchases: ['Purchases', 'Supplier stock restock, editable total cost & bill photos'],
+    adjustments: ['Stock Adjustments', 'Free Sales / Donations & Stock Damage / Loss tracking'],
+    workforce: ['Workers & Daily Attendance', 'Profiles, wages, DD-MM-YYYY Time-In/Out & monthly summary'],
+    notes: ['Personal Notes', 'Pinned reminders, search & password-locked private notes'],
+    plantcare: ['Scientific Plant Care Database', 'Sunlight, watering, soil pH, NPK & pest remedies'],
+    gallery: ['Bill Gallery', 'All uploaded sales, purchase & expense bill photos'],
+    settings: ['Settings & Security', 'Nursery name, 10-day auto-lock, Master Password & OTP reset']
+  };
+  const [t, sub] = titles[currentRoute] || ['Sach Nursery', ''];
+  document.getElementById('pageTitle').textContent = t;
+  document.getElementById('pageSubTitle').textContent = sub;
+
+  const main = document.getElementById('mainContent');
+  switch (currentRoute) {
+    case 'dashboard': renderDashboard(main); break;
+    case 'inventory': renderInventory(main); break;
+    case 'sales': renderSales(main); break;
+    case 'purchases': renderPurchases(main); break;
+    case 'adjustments': renderAdjustments(main); break;
+    case 'workforce': renderWorkforce(main); break;
+    case 'notes': renderNotes(main); break;
+    case 'plantcare': renderPlantCare(main); break;
+    case 'gallery': renderGallery(main); break;
+    case 'settings': renderSettings(main); break;
+  }
+}
+
+/* ============================================================================
+   1. DASHBOARD + EXCEL IMPORT/EXPORT
+============================================================================ */
+function getDashRange() {
+  const today = formatDateDDMMYYYY();
+  if (dashFilterPreset === 'today') return [today, today];
+  if (dashFilterPreset === '7d') return [addDaysDDMMYYYY(today, -6), today];
+  if (dashFilterPreset === '30d') return [addDaysDDMMYYYY(today, -29), today];
+  if (dashFilterPreset === 'custom') return [dashFromDate, dashToDate];
+  return ['', ''];
+}
+
+function renderDashboard(el) {
+  const [from, to] = getDashRange();
+  const inRange = d => (!from && !to) ? true : isDateInRange(d, from, to);
+
+  const salesFiltered = state.sales.filter(s => inRange(s.date));
+  const totalRevenue = salesFiltered.reduce((a, s) => a + (Number(s.netTotal) || 0), 0);
+  const totalCash = salesFiltered.reduce((a, s) => a + (Number(s.cashAmount) || 0), 0);
+  const totalUpi = salesFiltered.reduce((a, s) => a + (Number(s.upiAmount) || 0), 0);
+
+  const purchasesFiltered = state.purchases.filter(p => inRange(p.date));
+  const totalPurchases = purchasesFiltered.reduce((a, p) => a + (Number(p.total) || 0), 0);
+
+  const donations = state.adjustments.filter(a => a.type === 'donation' && inRange(a.date));
+  const donationQty = donations.reduce((a, d) => a + (Number(d.qty) || 0), 0);
+  const donationVal = donations.reduce((a, d) => a + (Number(d.estimatedValue) || 0), 0);
+
+  const damages = state.adjustments.filter(a => a.type === 'damage' && inRange(a.date));
+  const damageQty = damages.reduce((a, d) => a + (Number(d.qty) || 0), 0);
+  const damageVal = damages.reduce((a, d) => a + (Number(d.estimatedValue) || 0), 0);
+
+  const lowStockItems = state.catalog.filter(i => i.stock < i.threshold);
+  const totalInvValue = state.catalog.reduce((a, i) => a + i.stock * i.rate, 0);
+
+  const today = formatDateDDMMYYYY();
+  const activeWorkers = state.workers.filter(w => w.active);
+  const todayAtt = state.attendance.filter(a => a.date === today);
+  const presentToday = todayAtt.filter(a => a.status === 'Present').length;
+  const halfToday = todayAtt.filter(a => a.status === 'Half-Day').length;
+  const absentToday = todayAtt.filter(a => a.status === 'Absent').length;
+
+  el.innerHTML = `
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-header" style="margin-bottom:8px;">
+        <div>
+          <strong>📅 Filter Period (DD-MM-YYYY)</strong>
+          <div style="font-size:0.78rem;color:var(--muted)">Nursery: <b>${esc(state.settings.nurseryName)}</b></div>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+          ${['today','7d','30d','all','custom'].map(p => `
+            <button class="btn btn-sm ${dashFilterPreset===p?'btn-primary':'btn-outline'}"
+                    onclick="dashFilterPreset='${p}'; renderCurrentView()">
+              ${p==='today'?'Today':p==='7d'?'7 Days':p==='30d'?'30 Days':p==='all'?'All Time':'Custom'}
+            </button>
+          `).join('')}
+          <button class="btn btn-sm btn-accent" onclick="exportAllExcel()">⬇ Export Excel</button>
+          <label class="btn btn-sm btn-outline" style="cursor:pointer;">
+            ⬆ Import Excel
+            <input type="file" accept=".xlsx,.xls,.csv" style="display:none" onchange="importExcelFile(this.files[0]); this.value='';" />
+          </label>
+        </div>
+      </div>
+      ${dashFilterPreset === 'custom' ? `
+        <div class="form-grid" style="margin-top:10px;max-width:520px;">
+          <div>
+            <label class="label">From (DD-MM-YYYY)</label>
+            ${renderDateField('dashFrom', dashFromDate, "dashFromDate=document.getElementById('dashFrom').value; renderCurrentView()")}
+          </div>
+          <div>
+            <label class="label">To (DD-MM-YYYY)</label>
+            ${renderDateField('dashTo', dashToDate, "dashToDate=document.getElementById('dashTo').value; renderCurrentView()")}
+          </div>
+        </div>
+      ` : ''}
+    </div>
+
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-label">Total Revenue (${salesFiltered.length} bills)</div>
+        <div class="kpi-value" style="color:var(--primary);">${money(totalRevenue)}</div>
+        <div class="kpi-sub">
+          <span class="badge badge-green">💵 Cash: ${money(totalCash)}</span>
+          <span class="badge badge-blue">📱 UPI: ${money(totalUpi)}</span>
+        </div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-label">Purchases (${purchasesFiltered.length})</div>
+        <div class="kpi-value">${money(totalPurchases)}</div>
+        <div class="kpi-sub"><span>Catalog Stock Value: <b>${money(totalInvValue)}</b></span></div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-label">Free Sales / Donations</div>
+        <div class="kpi-value" style="color:var(--purple);">${donationQty} Plants</div>
+        <div class="kpi-sub"><span>₹0 Revenue • Est. Value: ${money(donationVal)}</span></div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-label">Stock Damage / Loss</div>
+        <div class="kpi-value" style="color:var(--danger);">${money(damageVal)}</div>
+        <div class="kpi-sub"><span>${damageQty} units lost (Excluded from Revenue)</span></div>
+      </div>
+
+      <div class="kpi-card" style="cursor:pointer;" onclick="invLowOnly=true; navigate('inventory')">
+        <div class="kpi-label">Low Stock Alerts</div>
+        <div class="kpi-value" style="color:${lowStockItems.length ? 'var(--warning)' : 'var(--primary)'};">${lowStockItems.length} Items</div>
+        <div class="kpi-sub"><span>Below custom threshold • Click to view →</span></div>
+      </div>
+
+      <div class="kpi-card" style="cursor:pointer;" onclick="navigate('workforce')">
+        <div class="kpi-label">Today's Attendance (${today})</div>
+        <div class="kpi-value">${presentToday} / ${activeWorkers.length}</div>
+        <div class="kpi-sub">
+          <span class="badge badge-green">P: ${presentToday}</span>
+          <span class="badge badge-amber">H: ${halfToday}</span>
+          <span class="badge badge-red">A: ${absentToday}</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px;">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">⚠️ Low Stock Alerts (${lowStockItems.length})</span>
+          <button class="btn btn-xs btn-outline" onclick="invLowOnly=true; navigate('inventory')">View All</button>
+        </div>
+        ${lowStockItems.length === 0 ? `<p style="color:var(--muted);font-size:0.88rem;">All items are above their low stock thresholds.</p>` : `
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Item (HI / EN)</th><th>Stock</th><th>Threshold</th><th>Action</th></tr></thead>
+              <tbody>
+                ${lowStockItems.slice(0, 8).map(i => `
+                  <tr>
+                    <td><b>${esc(i.nameHi)}</b><br><small style="color:var(--muted)">${esc(i.nameEn)} ${i.variety ? `(${esc(i.variety)})` : ''}</small></td>
+                    <td><span class="badge badge-red">${i.stock}</span></td>
+                    <td>${i.threshold}</td>
+                    <td><button class="btn btn-xs btn-primary" onclick="openPurchaseModal('${i.id}')">+ Restock</button></td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        `}
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">🧾 Recent Sales</span>
+          <button class="btn btn-xs btn-outline" onclick="navigate('sales')">All Sales →</button>
+        </div>
+        ${state.sales.length === 0 ? `<p style="color:var(--muted);">No sales yet.</p>` : `
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Bill / Date</th><th>Customer</th><th>Total</th><th>Split</th></tr></thead>
+              <tbody>
+                ${state.sales.slice(0, 7).map(s => `
+                  <tr>
+                    <td><b>${esc(s.billNo)}</b><br><small>${esc(s.date)}</small></td>
+                    <td>${esc(s.customerName || 'Walk-in')}</td>
+                    <td><b>${money(s.netTotal)}</b></td>
+                    <td><small>💵 ${money(s.cashAmount)}<br>📱 ${money(s.upiAmount)}</small></td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        `}
+      </div>
+    </div>
+  `;
+}
+
+/* ============================================================================
+   2. INVENTORY & DYNAMIC CATALOG
+============================================================================ */
+function renderInventory(el) {
+  const q = invSearch.trim().toLowerCase();
+  const filtered = state.catalog.filter(item => {
+    if (invCatFilter !== 'all' && item.category !== invCatFilter) return false;
+    if (invLowOnly && !(item.stock < item.threshold)) return false;
+    if (q) {
+      const hay = `${item.nameHi} ${item.nameEn} ${item.variety} ${getCategoryLabel(item.category)}`.toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+
+  const totalUnits = filtered.reduce((a, i) => a + i.stock, 0);
+  const totalVal = filtered.reduce((a, i) => a + i.stock * i.rate, 0);
+
+  el.innerHTML = `
+    <div class="card" style="margin-bottom:14px;">
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between;">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;flex:1;min-width:260px;">
+          <input type="text" class="input" style="max-width:280px;" placeholder="Search Hindi / English / Variety..."
+                 value="${esc(invSearch)}" oninput="invSearch=this.value; renderInventory(document.getElementById('mainContent'))" />
+          <select class="select" style="max-width:240px;" onchange="invCatFilter=this.value; renderCurrentView()">
+            <option value="all" ${invCatFilter==='all'?'selected':''}>All Categories (${state.catalog.length})</option>
+            ${state.categories.map(c => `
+              <option value="${esc(c.id)}" ${invCatFilter===c.id?'selected':''}>${esc(c.nameHi)} / ${esc(c.nameEn)}</option>
+            `).join('')}
+          </select>
+          <label style="display:flex;align-items:center;gap:6px;font-size:0.85rem;font-weight:600;cursor:pointer;padding:0 6px;">
+            <input type="checkbox" ${invLowOnly?'checked':''} onchange="invLowOnly=this.checked; renderCurrentView()" />
+            Low Stock Only
+          </label>
+        </div>
+
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-outline btn-sm" onclick="openAddCategoryModal()">+ Category</button>
+          <button class="btn btn-primary btn-sm" onclick="openCatalogItemModal()">+ Add Catalog Item</button>
+        </div>
+      </div>
+
+      <div style="margin-top:10px;display:flex;gap:14px;flex-wrap:wrap;font-size:0.82rem;color:var(--muted);">
+        <span>Showing: <b>${filtered.length}</b> items</span>
+        <span>Total Units: <b>${totalUnits}</b></span>
+        <span>Total Value: <b>${money(totalVal)}</b></span>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Item Name (Hindi / English)</th>
+            <th>Category</th>
+            <th>Available Stock</th>
+            <th>Low Threshold</th>
+            <th>Selling Rate (₹)</th>
+            <th>Total Value</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${filtered.length === 0 ? `<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--muted);">No items match your filter.</td></tr>` : filtered.map(item => {
+            const isLow = item.stock < item.threshold;
+            const val = item.stock * item.rate;
+            return `
+              <tr>
+                <td>
+                  <div style="display:flex;align-items:center;gap:10px;">
+                    ${item.photo ? `<img src="${item.photo}" class="item-thumb" alt="" />` : ''}
+                    <div>
+                      <div style="font-weight:700;">${esc(item.nameHi)} <span style="font-weight:500;color:var(--muted);">/ ${esc(item.nameEn)}</span></div>
+                      ${item.variety ? `<div style="font-size:0.78rem;color:var(--primary);">Variety: ${esc(item.variety)}</div>` : ''}
+                    </div>
+                  </div>
+                </td>
+                <td><span class="badge badge-gray">${esc(getCategoryLabel(item.category))}</span></td>
+                <td>
+                  <span class="badge ${isLow ? 'badge-red' : 'badge-green'}">${item.stock} units</span>
+                  ${isLow ? `<div style="font-size:0.72rem;color:var(--danger);font-weight:700;margin-top:2px;">⚠ Below ${item.threshold}</div>` : ''}
+                </td>
+                <td>
+                  <input type="number" min="0" class="input" style="width:74px;padding:4px 7px;"
+                         value="${item.threshold}" onchange="updateItemThreshold('${item.id}', this.value)" />
+                </td>
+                <td>
+                  <b>${money(item.rate)}</b>
+                  ${item.rateOptions && item.rateOptions.length > 1 ? `
+                    <div class="rate-pills">
+                      ${item.rateOptions.map(r => `
+                        <button type="button" class="rate-pill ${Number(item.rate)===Number(r)?'active':''}"
+                                onclick="switchItemRate('${item.id}', ${r})">₹${r}</button>
+                      `).join('')}
+                    </div>
+                  ` : ''}
+                </td>
+                <td><b>${money(val)}</b></td>
+                <td>
+                  <div style="display:flex;gap:5px;flex-wrap:wrap;">
+                    <button class="btn btn-xs btn-accent" onclick="openQuickSaleModal('${item.id}')">⚡ Quick Sale</button>
+                    <button class="btn btn-xs btn-primary" onclick="addToCart('${item.id}')">🛒 + Cart</button>
+                    <button class="btn btn-xs btn-outline" onclick="openCatalogItemModal('${item.id}')">✏️</button>
+                    <button class="btn btn-xs btn-danger" onclick="deleteCatalogItem('${item.id}')">🗑</button>
+                  </div>
+                </td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function updateItemThreshold(id, val) {
+  const item = state.catalog.find(i => i.id === id);
+  if (!item) return;
+  item.threshold = Math.max(0, Number(val) || 0);
+  saveState();
+  renderCurrentView();
+  toast(`Threshold updated for ${item.nameEn}`);
+}
+
+function switchItemRate(id, rate) {
+  const item = state.catalog.find(i => i.id === id);
+  if (!item) return;
+  item.rate = Number(rate);
+  saveState();
+  renderCurrentView();
+}
+
+function openAddCategoryModal() {
+  openModal('➕ Create New Category', `
+    <div class="form-group">
+      <label class="label">Category Name (English) *</label>
+      <input type="text" class="input" id="newCatEn" placeholder="e.g., Aquatic Plants" />
+    </div>
+    <div class="form-group">
+      <label class="label">Category Name (Hindi) *</label>
+      <input type="text" class="input" id="newCatHi" placeholder="e.g., जलीय पौधे" />
+    </div>
+  `, `
+    <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+    <button class="btn btn-primary" onclick="saveNewCategory()">Create Category</button>
+  `, 'modal-sm');
+}
+
+function saveNewCategory() {
+  const nameEn = document.getElementById('newCatEn').value.trim();
+  const nameHi = document.getElementById('newCatHi').value.trim();
+  if (!nameEn || !nameHi) return toast('Enter both English and Hindi category names', 'error');
+  const id = 'cat_' + nameEn.toLowerCase().replace(/[^a-z0-9]+/g, '_') + '_' + Date.now().toString(36).slice(-3);
+  state.categories.push({ id, nameEn, nameHi, predefined: false });
+  saveState();
+  closeModal();
+  renderCurrentView();
+  toast(`Category "${nameHi} / ${nameEn}" added!`);
+}
+
+let tempItemPhoto = '';
+function openCatalogItemModal(editId = null) {
+  const item = editId ? state.catalog.find(i => i.id === editId) : null;
+  tempItemPhoto = item ? (item.photo || '') : '';
+
+  openModal(item ? `✏️ Edit Item: ${esc(item.nameEn)}` : '➕ Add New Catalog Item', `
+    <div class="form-grid">
+      <div class="form-group">
+        <label class="label">Name (English) *</label>
+        <input type="text" class="input" id="catNameEn" value="${esc(item?.nameEn || '')}" placeholder="e.g., Curry Leaf" />
+      </div>
+      <div class="form-group">
+        <label class="label">Name (Hindi) *</label>
+        <input type="text" class="input" id="catNameHi" value="${esc(item?.nameHi || '')}" placeholder="e.g., करीपत्ता" />
+      </div>
+    </div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label class="label">Variety (Optional, Bilingual)</label>
+        <input type="text" class="input" id="catVariety" value="${esc(item?.variety || '')}" placeholder="e.g., थाई पिंक / Thai Pink" />
+      </div>
+      <div class="form-group">
+        <label class="label">Category *</label>
+        <div style="display:flex;gap:6px;">
+          <select class="select" id="catCategory">
+            ${state.categories.map(c => `<option value="${esc(c.id)}" ${(item?.category || 'herbs')===c.id?'selected':''}>${esc(c.nameHi)} / ${esc(c.nameEn)}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label class="label">${item ? 'Current Stock Quantity *' : 'Initial Stock Quantity *'}</label>
+        <input type="number" min="0" class="input" id="catStock" value="${item ? item.stock : 20}" />
+      </div>
+      <div class="form-group">
+        <label class="label">Selling Rate (₹) *</label>
+        <input type="number" min="0" step="0.01" class="input" id="catRate" value="${item ? item.rate : 100}" />
+      </div>
+      <div class="form-group">
+        <label class="label">Custom Low Stock Threshold</label>
+        <input type="number" min="0" class="input" id="catThreshold" value="${item ? item.threshold : 10}" />
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="label">Extra Size/Rate Options (comma-separated, optional)</label>
+      <input type="text" class="input" id="catRateOpts" value="${esc((item?.rateOptions || []).join(', '))}" placeholder="e.g., 50, 100" />
+    </div>
+    <div class="form-group">
+      <label class="label">Optional Item Photo (Manual Upload Only — No Placeholder Photos)</label>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+        <input type="file" accept="image/*" class="input" style="max-width:290px;" onchange="handleTempItemPhoto(this.files[0])" />
+        <div id="tempItemPhotoPreview">
+          ${tempItemPhoto ? `<img src="${tempItemPhoto}" class="item-thumb" style="width:54px;height:54px;" /> <button type="button" class="btn btn-xs btn-outline" onclick="tempItemPhoto=''; document.getElementById('tempItemPhotoPreview').innerHTML='No photo';">Remove</button>` : '<span style="font-size:0.8rem;color:var(--muted)">No photo uploaded</span>'}
+        </div>
+      </div>
+    </div>
+  `, `
+    <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+    <button class="btn btn-primary" onclick="saveCatalogItem('${editId || ''}')">${item ? 'Update Item' : 'Save Item'}</button>
+  `);
+}
+
+async function handleTempItemPhoto(file) {
+  if (!file) return;
+  tempItemPhoto = await compressImageFile(file, 500, 0.7);
+  document.getElementById('tempItemPhotoPreview').innerHTML = `
+    <img src="${tempItemPhoto}" class="item-thumb" style="width:54px;height:54px;" />
+    <button type="button" class="btn btn-xs btn-outline" onclick="tempItemPhoto=''; document.getElementById('tempItemPhotoPreview').innerHTML='No photo uploaded';">Remove</button>
+  `;
+}
+
+function saveCatalogItem(editId) {
+  const nameEn = document.getElementById('catNameEn').value.trim();
+  const nameHi = document.getElementById('catNameHi').value.trim();
+  const variety = document.getElementById('catVariety').value.trim();
+  const category = document.getElementById('catCategory').value;
+  const stock = Math.max(0, Number(document.getElementById('catStock').value) || 0);
+  const rate = Math.max(0, Number(document.getElementById('catRate').value) || 0);
+  const threshold = Math.max(0, Number(document.getElementById('catThreshold').value ?? 10));
+  const optsRaw = document.getElementById('catRateOpts').value;
+  let rateOptions = optsRaw.split(',').map(x => Number(x.trim())).filter(x => !isNaN(x) && x > 0);
+  if (!rateOptions.length && rate > 0) rateOptions = [rate];
+  if (rate > 0 && !rateOptions.includes(rate)) rateOptions.unshift(rate);
+
+  if (!nameEn || !nameHi) return toast('Both English and Hindi names are required', 'error');
+
+  if (editId) {
+    const item = state.catalog.find(i => i.id === editId);
+    if (item) {
+      Object.assign(item, { nameEn, nameHi, variety, category, stock, rate, threshold, rateOptions, photo: tempItemPhoto });
+    }
+    toast('Catalog item updated!');
+  } else {
+    state.catalog.unshift({
+      id: uid('catitem'),
+      category, nameEn, nameHi, variety, stock, rate, threshold, rateOptions, photo: tempItemPhoto
+    });
+    toast('New catalog item created!');
+  }
+  saveState();
+  closeModal();
+  renderCurrentView();
+}
+
+async function deleteCatalogItem(id) {
+  const item = state.catalog.find(i => i.id === id);
+  if (!item) return;
+  const ok = await requireMasterPassword(`Delete catalog item "${item.nameHi} / ${item.nameEn}"? This cannot be undone.`);
+  if (!ok) return;
+  state.catalog = state.catalog.filter(i => i.id !== id);
+  cart = cart.filter(c => c.catalogId !== id);
+  saveState();
+  renderCurrentView();
+  toast('Catalog item deleted.');
+}
+
+/* ============================================================================
+   3. PERSISTENT CART DRAWER, QUICK SALE, OPEN ITEMS & SPLIT PAYMENT
+============================================================================ */
+function addToCart(catalogId) {
+  const item = state.catalog.find(i => i.id === catalogId);
+  if (!item) return;
+  if (item.stock <= 0) return toast('Out of stock! Restock via Purchases first.', 'error');
+
+  const existing = cart.find(c => !c.isOpenItem && c.catalogId === catalogId && c.unitRate === item.rate);
+  if (existing) {
+    if (existing.qty + 1 > item.stock) return toast(`Only ${item.stock} available in stock`, 'warn');
+    existing.qty += 1;
+    recalcCartLine(existing);
+  } else {
+    const line = {
+      lineId: uid('line'),
+      catalogId: item.id,
+      nameHi: item.nameHi,
+      nameEn: item.nameEn,
+      variety: item.variety,
+      maxStock: item.stock,
+      qty: 1,
+      unitRate: item.rate,
+      discountType: 'flat',
+      discountVal: 0,
+      discountAmt: 0,
+      total: item.rate,
+      isOpenItem: false
+    };
+    cart.push(line);
+  }
+  cartManualNetOverride = null;
+  syncCartSplitDefault();
+  updateHeaderBadges();
+  renderCartDrawer();
+  toast(`Added ${item.nameHi} / ${item.nameEn} to Cart`);
+}
+
+function recalcCartLine(line) {
+  const gross = (Number(line.qty) || 0) * (Number(line.unitRate) || 0);
+  let disc = 0;
+  if (line.discountType === 'pct') {
+    disc = gross * ((Number(line.discountVal) || 0) / 100);
+  } else {
+    disc = Number(line.discountVal) || 0;
+  }
+  disc = Math.max(0, Math.min(gross, disc));
+  line.discountAmt = Math.round(disc * 100) / 100;
+  line.total = Math.max(0, Math.round((gross - disc) * 100) / 100);
+}
+
+function computeCartTotals() {
+  const subtotal = cart.reduce((s, l) => s + (Number(l.total) || 0), 0);
+  let billDiscAmt = 0;
+  if (cartBillDiscountType === 'pct') {
+    billDiscAmt = subtotal * ((Number(cartBillDiscountVal) || 0) / 100);
+  } else {
+    billDiscAmt = Number(cartBillDiscountVal) || 0;
+  }
+  billDiscAmt = Math.max(0, Math.min(subtotal, Math.round(billDiscAmt * 100) / 100));
+  const netTotal = cartManualNetOverride !== null
+    ? Math.max(0, Math.round(cartManualNetOverride * 100) / 100)
+    : Math.max(0, Math.round((subtotal - billDiscAmt) * 100) / 100);
+  return { subtotal: Math.round(subtotal * 100) / 100, billDiscAmt, netTotal };
+}
+
+function syncCartSplitDefault() {
+  const { netTotal } = computeCartTotals();
+  if (cartCash > netTotal) {
+    cartCash = netTotal;
+    cartUpi = 0;
+  } else if (Math.abs((cartCash + cartUpi) - netTotal) > 0.01) {
+    cartCash = netTotal;
+    cartUpi = 0;
+  }
+}
+
+function toggleCartDrawer(open) {
+  document.getElementById('cartBackdrop').classList.toggle('open', open);
+  if (open) renderCartDrawer();
+}
+
+function renderCartDrawer() {
+  const body = document.getElementById('cartBody');
+  const footer = document.getElementById('cartFooter');
+
+  if (cart.length === 0) {
+    body.innerHTML = `
+      <div style="text-align:center;padding:36px 12px;color:var(--muted);">
+        <div style="font-size:2.2rem;margin-bottom:8px;">🛒</div>
+        <p>Your cart is empty.</p>
+        <p style="font-size:0.82rem;margin-top:4px;">Add plants from Inventory or add an ad-hoc Open Item below.</p>
+        <button class="btn btn-outline btn-sm" style="margin-top:12px;" onclick="openAddOpenItemToCartModal()">+ Add Non-Inventory Open Item</button>
+      </div>
+    `;
+    footer.innerHTML = '';
+    return;
+  }
+
+  const { subtotal, billDiscAmt, netTotal } = computeCartTotals();
+  syncCartSplitDefault();
+
+  body.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+      <button class="btn btn-xs btn-outline" onclick="openAddOpenItemToCartModal()">+ Open Item (Ad-hoc)</button>
+      <button class="btn btn-xs btn-danger" onclick="cart=[]; cartManualNetOverride=null; updateHeaderBadges(); renderCartDrawer();">Clear Cart</button>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:14px;">
+      ${cart.map(line => `
+        <div style="border:1px solid var(--border);border-radius:9px;padding:10px;background:#fff;">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+            <div>
+              <div style="font-weight:700;font-size:0.9rem;">
+                ${esc(line.nameHi)} / ${esc(line.nameEn)}
+                ${line.isOpenItem ? `<span class="badge badge-blue">Open Item</span>` : ''}
+              </div>
+              ${line.variety ? `<small style="color:var(--primary)">${esc(line.variety)}</small>` : ''}
+            </div>
+            <button class="btn btn-xs btn-outline" onclick="removeCartLine('${line.lineId}')">✕</button>
+          </div>
+
+          <div class="form-grid" style="grid-template-columns:repeat(4,1fr);gap:6px;margin-top:8px;">
+            <div>
+              <label class="label">Qty</label>
+              <input type="number" min="1" ${!line.isOpenItem ? `max="${line.maxStock}"` : ''} class="input" style="padding:5px;"
+                     value="${line.qty}" onchange="updateCartLineQty('${line.lineId}', this.value)" />
+            </div>
+            <div>
+              <label class="label">Rate (₹)</label>
+              <input type="number" min="0" step="0.01" class="input" style="padding:5px;"
+                     value="${line.unitRate}" onchange="updateCartLineRate('${line.lineId}', this.value)" />
+            </div>
+            <div>
+              <label class="label">Disc (${line.discountType==='pct'?'%':'₹'})</label>
+              <div style="display:flex;gap:2px;">
+                <input type="number" min="0" step="0.01" class="input" style="padding:5px;"
+                       value="${line.discountVal}" onchange="updateCartLineDisc('${line.lineId}', this.value)" />
+                <button type="button" class="btn btn-xs btn-outline" onclick="toggleCartLineDiscType('${line.lineId}')">${line.discountType==='pct'?'%':'₹'}</button>
+              </div>
+            </div>
+            <div>
+              <label class="label">Total (₹)</label>
+              <input type="number" min="0" step="0.01" class="input" style="padding:5px;font-weight:700;"
+                     value="${line.total}" onchange="updateCartLineTotal('${line.lineId}', this.value)" />
+            </div>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+
+    <div class="form-grid" style="gap:8px;margin-bottom:10px;">
+      <div>
+        <label class="label">Customer Name</label>
+        <input type="text" class="input" value="${esc(cartCustomerName)}" placeholder="Walk-in Customer"
+               oninput="cartCustomerName=this.value" />
+      </div>
+      <div>
+        <label class="label">Customer WhatsApp / Phone</label>
+        <input type="tel" class="input" value="${esc(cartCustomerPhone)}" placeholder="10-digit mobile"
+               oninput="cartCustomerPhone=this.value" />
+      </div>
+    </div>
+
+    <div class="form-grid" style="gap:8px;margin-bottom:10px;">
+      <div>
+        <label class="label">Overall Bill Discount</label>
+        <div style="display:flex;gap:4px;">
+          <input type="number" min="0" step="0.01" class="input" value="${cartBillDiscountVal}"
+                 oninput="cartManualNetOverride=null; cartBillDiscountVal=Math.max(0,Number(this.value)||0); syncCartSplitDefault(); renderCartDrawerFooterOnly()" />
+          <button class="btn btn-sm btn-outline" onclick="cartManualNetOverride=null; cartBillDiscountType=cartBillDiscountType==='flat'?'pct':'flat'; syncCartSplitDefault(); renderCartDrawer()">${cartBillDiscountType==='pct'?'%':'₹'}</button>
+        </div>
+      </div>
+      <div>
+        <label class="label">Attach Bill Photo (Optional)</label>
+        <input type="file" accept="image/*" class="input" style="padding:5px;" onchange="handleCartBillPhoto(this.files[0])" />
+      </div>
+    </div>
+  `;
+
+  renderCartDrawerFooterOnly();
+}
+
+function renderCartDrawerFooterOnly() {
+  const footer = document.getElementById('cartFooter');
+  if (!cart.length) { footer.innerHTML = ''; return; }
+  const { subtotal, billDiscAmt, netTotal } = computeCartTotals();
+  syncCartSplitDefault();
+
+  footer.innerHTML = `
+    <div style="display:flex;justify-content:space-between;font-size:0.85rem;margin-bottom:4px;">
+      <span>Subtotal:</span><b>${money(subtotal)}</b>
+    </div>
+    <div style="display:flex;justify-content:space-between;font-size:0.85rem;margin-bottom:8px;color:var(--muted);">
+      <span>Bill Discount:</span><span>- ${money(billDiscAmt)}</span>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+      <strong style="font-size:1rem;">Net Total (Editable):</strong>
+      <input type="number" min="0" step="0.01" class="input" style="width:130px;text-align:right;font-weight:800;font-size:1.05rem;color:var(--primary);"
+             value="${netTotal}" onchange="onCartNetTotalEdit(this.value)" />
+    </div>
+
+    <div class="split-box" style="margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+        <strong style="font-size:0.82rem;">Two-Way Split (No Credit Allowed)</strong>
+        <div style="display:flex;gap:4px;">
+          <button type="button" class="btn btn-xs btn-outline" onclick="setCartSplit(${netTotal}, 0)">100% Cash</button>
+          <button type="button" class="btn btn-xs btn-outline" onclick="setCartSplit(0, ${netTotal})">100% UPI</button>
+        </div>
+      </div>
+      <div class="form-grid" style="grid-template-columns:1fr 1fr;gap:8px;">
+        <div>
+          <label class="label">💵 Cash (₹)</label>
+          <input type="number" min="0" max="${netTotal}" step="0.01" class="input" id="cartCashInput"
+                 value="${cartCash}" oninput="onCartCashChange(this.value)" />
+        </div>
+        <div>
+          <label class="label">📱 UPI Online (₹)</label>
+          <input type="number" min="0" max="${netTotal}" step="0.01" class="input" id="cartUpiInput"
+                 value="${cartUpi}" oninput="onCartUpiChange(this.value)" />
+        </div>
+      </div>
+    </div>
+
+    <button class="btn btn-primary" style="width:100%;padding:11px;" onclick="completeCartCheckout()">
+      ✅ Complete Sale & Generate Bill (${money(netTotal)})
+    </button>
+  `;
+}
+
+function removeCartLine(lineId) {
+  cart = cart.filter(l => l.lineId !== lineId);
+  cartManualNetOverride = null;
+  updateHeaderBadges();
+  renderCartDrawer();
+}
+
+function updateCartLineQty(lineId, val) {
+  const l = cart.find(x => x.lineId === lineId);
+  if (!l) return;
+  let q = Math.max(1, Number(val) || 1);
+  if (!l.isOpenItem && q > l.maxStock) {
+    q = l.maxStock;
+    toast(`Max available stock is ${l.maxStock}`, 'warn');
+  }
+  l.qty = q;
+  recalcCartLine(l);
+  cartManualNetOverride = null;
+  updateHeaderBadges();
+  renderCartDrawer();
+}
+
+function updateCartLineRate(lineId, val) {
+  const l = cart.find(x => x.lineId === lineId);
+  if (!l) return;
+  l.unitRate = Math.max(0, Number(val) || 0);
+  recalcCartLine(l);
+  cartManualNetOverride = null;
+  renderCartDrawer();
+}
+
+function updateCartLineDisc(lineId, val) {
+  const l = cart.find(x => x.lineId === lineId);
+  if (!l) return;
+  l.discountVal = Math.max(0, Number(val) || 0);
+  recalcCartLine(l);
+  cartManualNetOverride = null;
+  renderCartDrawer();
+}
+
+function toggleCartLineDiscType(lineId) {
+  const l = cart.find(x => x.lineId === lineId);
+  if (!l) return;
+  l.discountType = l.discountType === 'flat' ? 'pct' : 'flat';
+  recalcCartLine(l);
+  cartManualNetOverride = null;
+  renderCartDrawer();
+}
+
+function updateCartLineTotal(lineId, newTotalRaw) {
+  const l = cart.find(x => x.lineId === lineId);
+  if (!l) return;
+  const newTotal = Math.max(0, Number(newTotalRaw) || 0);
+  l.discountVal = 0;
+  l.discountAmt = 0;
+  l.discountType = 'flat';
+  l.unitRate = l.qty > 0 ? Math.round((newTotal / l.qty) * 100) / 100 : 0;
+  l.total = Math.round(newTotal * 100) / 100;
+  cartManualNetOverride = null;
+  renderCartDrawer();
+}
+
+function onCartNetTotalEdit(val) {
+  const v = Math.max(0, Number(val) || 0);
+  cartManualNetOverride = v;
+  cartCash = v;
+  cartUpi = 0;
+  renderCartDrawerFooterOnly();
+}
+
+function setCartSplit(c, u) {
+  cartCash = Math.round(c * 100) / 100;
+  cartUpi = Math.round(u * 100) / 100;
+  document.getElementById('cartCashInput').value = cartCash;
+  document.getElementById('cartUpiInput').value = cartUpi;
+}
+
+function onCartCashChange(val) {
+  const { netTotal } = computeCartTotals();
+  let c = Math.max(0, Math.min(netTotal, Number(val) || 0));
+  cartCash = Math.round(c * 100) / 100;
+  cartUpi = Math.round((netTotal - cartCash) * 100) / 100;
+  const upiEl = document.getElementById('cartUpiInput');
+  if (upiEl) upiEl.value = cartUpi;
+}
+
+function onCartUpiChange(val) {
+  const { netTotal } = computeCartTotals();
+  let u = Math.max(0, Math.min(netTotal, Number(val) || 0));
+  cartUpi = Math.round(u * 100) / 100;
+  cartCash = Math.round((netTotal - cartUpi) * 100) / 100;
+  const cashEl = document.getElementById('cartCashInput');
+  if (cashEl) cashEl.value = cartCash;
+}
+
+async function handleCartBillPhoto(file) {
+  if (!file) return;
+  cartBillPhoto = await compressImageFile(file);
+  toast('Bill photo attached to checkout!');
+}
+
+function openAddOpenItemToCartModal() {
+  openModal('➕ Add Non-Inventory Open Item', `
+    <p style="font-size:0.84rem;color:var(--muted);margin-bottom:10px;">
+      Add an ad-hoc item or service directly to the bill without requiring it in the catalog or deducting stock.
+    </p>
+    <div class="form-grid">
+      <div class="form-group">
+        <label class="label">Item / Service Name (English) *</label>
+        <input type="text" class="input" id="openItemEn" placeholder="e.g., Custom Pot Arrangement" />
+      </div>
+      <div class="form-group">
+        <label class="label">Name (Hindi, Optional)</label>
+        <input type="text" class="input" id="openItemHi" placeholder="e.g., कस्टम गमला सेट" />
+      </div>
+    </div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label class="label">Quantity *</label>
+        <input type="number" min="1" class="input" id="openItemQty" value="1" oninput="syncOpenItemModalTotal()" />
+      </div>
+      <div class="form-group">
+        <label class="label">Unit Rate (₹) *</label>
+        <input type="number" min="0" step="0.01" class="input" id="openItemRate" value="100" oninput="syncOpenItemModalTotal()" />
+      </div>
+      <div class="form-group">
+        <label class="label">Total (Editable ₹)</label>
+        <input type="number" min="0" step="0.01" class="input" id="openItemTotal" value="100" oninput="syncOpenItemModalRate()" />
+      </div>
+    </div>
+  `, `
+    <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+    <button class="btn btn-primary" onclick="addOpenItemToCart()">Add to Cart</button>
+  `);
+}
+
+function syncOpenItemModalTotal() {
+  const q = Math.max(1, Number(document.getElementById('openItemQty').value) || 1);
+  const r = Math.max(0, Number(document.getElementById('openItemRate').value) || 0);
+  document.getElementById('openItemTotal').value = Math.round(q * r * 100) / 100;
+}
+
+function syncOpenItemModalRate() {
+  const q = Math.max(1, Number(document.getElementById('openItemQty').value) || 1);
+  const t = Math.max(0, Number(document.getElementById('openItemTotal').value) || 0);
+  document.getElementById('openItemRate').value = Math.round((t / q) * 100) / 100;
+}
+
+function addOpenItemToCart() {
+  const nameEn = document.getElementById('openItemEn').value.trim();
+  const nameHi = document.getElementById('openItemHi').value.trim() || nameEn;
+  const qty = Math.max(1, Number(document.getElementById('openItemQty').value) || 1);
+  const unitRate = Math.max(0, Number(document.getElementById('openItemRate').value) || 0);
+  const total = Math.max(0, Number(document.getElementById('openItemTotal').value) || 0);
+  if (!nameEn) return toast('Enter an item name', 'error');
+
+  cart.push({
+    lineId: uid('open'),
+    catalogId: null,
+    nameHi, nameEn, variety: '',
+    qty, unitRate,
+    discountType: 'flat', discountVal: 0, discountAmt: 0,
+    total, isOpenItem: true
+  });
+  cartManualNetOverride = null;
+  updateHeaderBadges();
+  closeModal();
+  toggleCartDrawer(true);
+  toast('Open Item added to Cart');
+}
+
+function completeCartCheckout() {
+  if (!cart.length) return;
+  const { subtotal, billDiscAmt, netTotal } = computeCartTotals();
+  if (netTotal <= 0) {
+    return toast('Paid sales must have a Total Amount greater than ₹0. Use Stock Adjustments for Free Donations.', 'error');
+  }
+  if (Math.abs((cartCash + cartUpi) - netTotal) > 0.05) {
+    return toast('Cash + UPI must equal the Net Total.', 'error');
+  }
+
+  // Validate stock
+  for (const line of cart) {
+    if (!line.isOpenItem) {
+      const catItem = state.catalog.find(i => i.id === line.catalogId);
+      if (!catItem || catItem.stock < line.qty) {
+        return toast(`Insufficient stock for ${line.nameEn}`, 'error');
+      }
+    }
+  }
+
+  // Deduct stock
+  for (const line of cart) {
+    if (!line.isOpenItem) {
+      const catItem = state.catalog.find(i => i.id === line.catalogId);
+      catItem.stock -= line.qty;
+    }
+  }
+
+  const today = formatDateDDMMYYYY();
+  const sale = {
+    id: uid('sale'),
+    billNo: `SN-${1001 + state.sales.length}`,
+    date: today,
+    createdAt: formatDateTimeDDMMYYYY(),
+    customerName: cartCustomerName.trim() || 'Walk-in Customer',
+    customerPhone: cartCustomerPhone.trim(),
+    items: JSON.parse(JSON.stringify(cart)),
+    subtotal,
+    billDiscountType: cartBillDiscountType,
+    billDiscountVal: cartBillDiscountVal,
+    billDiscountAmt: cartManualNetOverride !== null ? Math.max(0, subtotal - netTotal) : billDiscAmt,
+    netTotal,
+    cashAmount: cartCash,
+    upiAmount: cartUpi,
+    billPhoto: cartBillPhoto
+  };
+
+  state.sales.unshift(sale);
+  cart = [];
+  cartBillDiscountVal = 0;
+  cartCustomerName = '';
+  cartCustomerPhone = '';
+  cartCash = 0;
+  cartUpi = 0;
+  cartBillPhoto = '';
+  cartManualNetOverride = null;
+
+  saveState();
+  toggleCartDrawer(false);
+  renderCurrentView();
+  openSaleReceiptModal(sale.id);
+  toast(`Sale ${sale.billNo} completed!`);
+}
+
+/* Quick Sale Single-Item Modal (with editable total, discount, two-way split & open-item option) */
+let qsPhoto = '';
+function openQuickSaleModal(preselectId = '') {
+  qsPhoto = '';
+  const firstId = preselectId || state.catalog[0]?.id || '';
+  const item = state.catalog.find(i => i.id === firstId);
+  const initRate = item ? item.rate : 100;
+
+  openModal('⚡ Quick Sale Billing', `
+    <div class="form-grid">
+      <div class="form-group">
+        <label class="label">Date (DD-MM-YYYY)</label>
+        ${renderDateField('qsDate', formatDateDDMMYYYY())}
+      </div>
+      <div class="form-group">
+        <label class="label">Sale Mode</label>
+        <select class="select" id="qsMode" onchange="toggleQuickSaleMode()">
+          <option value="catalog">Catalog Item (Deducts Stock)</option>
+          <option value="open">Non-Inventory Open Item</option>
+        </select>
+      </div>
+    </div>
+
+    <div id="qsCatalogWrap">
+      <div class="form-group">
+        <label class="label">Select Plant / Item *</label>
+        <select class="select" id="qsItemId" onchange="onQuickSaleItemChange()">
+          ${state.catalog.map(i => `
+            <option value="${esc(i.id)}" ${i.id===firstId?'selected':''}>
+              ${esc(i.nameHi)} / ${esc(i.nameEn)} ${i.variety ? `(${esc(i.variety)})` : ''} — ₹${i.rate} [Stock: ${i.stock}]
+            </option>
+          `).join('')}
+        </select>
+      </div>
+    </div>
+
+    <div id="qsOpenWrap" style="display:none;">
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="label">Open Item Name (English) *</label>
+          <input type="text" class="input" id="qsOpenEn" placeholder="e.g., Garden Delivery / Custom Mix" />
+        </div>
+        <div class="form-group">
+          <label class="label">Name (Hindi)</label>
+          <input type="text" class="input" id="qsOpenHi" placeholder="Optional Hindi name" />
+        </div>
+      </div>
+    </div>
+
+    <div class="form-grid">
+      <div class="form-group">
+        <label class="label">Quantity *</label>
+        <input type="number" min="1" class="input" id="qsQty" value="1" oninput="recalcQuickSaleFromRate()" />
+      </div>
+      <div class="form-group">
+        <label class="label">Per-Unit Rate (₹)</label>
+        <input type="number" min="0" step="0.01" class="input" id="qsRate" value="${initRate}" oninput="recalcQuickSaleFromRate()" />
+      </div>
+      <div class="form-group">
+        <label class="label">Discount (<span id="qsDiscUnitLabel">₹</span>)</label>
+        <div style="display:flex;gap:4px;">
+          <input type="number" min="0" step="0.01" class="input" id="qsDiscVal" value="0" oninput="recalcQuickSaleFromRate()" />
+          <button type="button" class="btn btn-sm btn-outline" id="qsDiscTypeBtn" data-type="flat" onclick="toggleQuickSaleDiscType()">₹</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="label">Total Amount (Editable ₹) *</label>
+        <input type="number" min="0" step="0.01" class="input" id="qsTotal" value="${initRate}" style="font-weight:800;color:var(--primary);"
+               oninput="recalcQuickSaleFromTotal()" />
+      </div>
+    </div>
+
+    <div class="split-box" style="margin-bottom:12px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <strong style="font-size:0.84rem;">Two-Way Split Payment (Cash + UPI Online Only)</strong>
+        <div style="display:flex;gap:4px;">
+          <button type="button" class="btn btn-xs btn-outline" onclick="setQsSplit('cash')">100% Cash</button>
+          <button type="button" class="btn btn-xs btn-outline" onclick="setQsSplit('upi')">100% UPI</button>
+        </div>
+      </div>
+      <div class="form-grid">
+        <div>
+          <label class="label">💵 Cash (₹)</label>
+          <input type="number" min="0" step="0.01" class="input" id="qsCash" value="${initRate}" oninput="onQsCashInput()" />
+        </div>
+        <div>
+          <label class="label">📱 UPI Online (₹)</label>
+          <input type="number" min="0" step="0.01" class="input" id="qsUpi" value="0" oninput="onQsUpiInput()" />
+        </div>
+      </div>
+    </div>
+
+    <div class="form-grid">
+      <div class="form-group">
+        <label class="label">Customer Name</label>
+        <input type="text" class="input" id="qsCustName" placeholder="Walk-in Customer" />
+      </div>
+      <div class="form-group">
+        <label class="label">Customer Mobile (WhatsApp)</label>
+        <input type="tel" class="input" id="qsCustPhone" placeholder="10-digit mobile" />
+      </div>
+      <div class="form-group">
+        <label class="label">Attach Bill Photo</label>
+        <input type="file" accept="image/*" class="input" onchange="handleQsPhoto(this.files[0])" />
+      </div>
+    </div>
+  `, `
+    <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+    <button class="btn btn-primary" onclick="submitQuickSale()">✅ Save Sale & Print / WhatsApp</button>
+  `);
+}
+
+function toggleQuickSaleMode() {
+  const m = document.getElementById('qsMode').value;
+  document.getElementById('qsCatalogWrap').style.display = m === 'catalog' ? 'block' : 'none';
+  document.getElementById('qsOpenWrap').style.display = m === 'open' ? 'block' : 'none';
+}
+
+function onQuickSaleItemChange() {
+  const id = document.getElementById('qsItemId').value;
+  const item = state.catalog.find(i => i.id === id);
+  if (item) {
+    document.getElementById('qsRate').value = item.rate;
+    recalcQuickSaleFromRate();
+  }
+}
+
+function toggleQuickSaleDiscType() {
+  const btn = document.getElementById('qsDiscTypeBtn');
+  const next = btn.dataset.type === 'flat' ? 'pct' : 'flat';
+  btn.dataset.type = next;
+  btn.textContent = next === 'pct' ? '%' : '₹';
+  document.getElementById('qsDiscUnitLabel').textContent = next === 'pct' ? '%' : '₹';
+  recalcQuickSaleFromRate();
+}
+
+function recalcQuickSaleFromRate() {
+  const qty = Math.max(1, Number(document.getElementById('qsQty').value) || 1);
+  const rate = Math.max(0, Number(document.getElementById('qsRate').value) || 0);
+  const dVal = Math.max(0, Number(document.getElementById('qsDiscVal').value) || 0);
+  const dType = document.getElementById('qsDiscTypeBtn').dataset.type;
+  const gross = qty * rate;
+  const disc = dType === 'pct' ? gross * (dVal / 100) : dVal;
+  const total = Math.max(0, Math.round((gross - Math.min(gross, disc)) * 100) / 100);
+  document.getElementById('qsTotal').value = total;
+  document.getElementById('qsCash').value = total;
+  document.getElementById('qsUpi').value = 0;
+}
+
+function recalcQuickSaleFromTotal() {
+  const qty = Math.max(1, Number(document.getElementById('qsQty').value) || 1);
+  const total = Math.max(0, Number(document.getElementById('qsTotal').value) || 0);
+  document.getElementById('qsDiscVal').value = 0;
+  document.getElementById('qsRate').value = Math.round((total / qty) * 100) / 100;
+  document.getElementById('qsCash').value = total;
+  document.getElementById('qsUpi').value = 0;
+}
+
+function setQsSplit(mode) {
+  const total = Math.max(0, Number(document.getElementById('qsTotal').value) || 0);
+  document.getElementById('qsCash').value = mode === 'cash' ? total : 0;
+  document.getElementById('qsUpi').value = mode === 'upi' ? total : 0;
+}
+
+function onQsCashInput() {
+  const total = Math.max(0, Number(document.getElementById('qsTotal').value) || 0);
+  let c = Math.max(0, Math.min(total, Number(document.getElementById('qsCash').value) || 0));
+  c = Math.round(c * 100) / 100;
+  document.getElementById('qsCash').value = c;
+  document.getElementById('qsUpi').value = Math.round((total - c) * 100) / 100;
+}
+
+function onQsUpiInput() {
+  const total = Math.max(0, Number(document.getElementById('qsTotal').value) || 0);
+  let u = Math.max(0, Math.min(total, Number(document.getElementById('qsUpi').value) || 0));
+  u = Math.round(u * 100) / 100;
+  document.getElementById('qsUpi').value = u;
+  document.getElementById('qsCash').value = Math.round((total - u) * 100) / 100;
+}
+
+async function handleQsPhoto(file) {
+  if (!file) return;
+  qsPhoto = await compressImageFile(file);
+  toast('Bill photo attached');
+}
+
+function submitQuickSale() {
+  const date = document.getElementById('qsDate').value.trim();
+  if (!parseDDMMYYYY(date)) return toast('Use DD-MM-YYYY format for Date', 'error');
+  const mode = document.getElementById('qsMode').value;
+  const qty = Math.max(1, Number(document.getElementById('qsQty').value) || 1);
+  const unitRate = Math.max(0, Number(document.getElementById('qsRate').value) || 0);
+  const total = Math.max(0, Number(document.getElementById('qsTotal').value) || 0);
+  const cash = Math.max(0, Number(document.getElementById('qsCash').value) || 0);
+  const upi = Math.max(0, Number(document.getElementById('qsUpi').value) || 0);
+
+  if (total <= 0) return toast('Non-zero Total Amount is required for paid sales!', 'error');
+  if (Math.abs((cash + upi) - total) > 0.05) return toast('Cash + UPI must equal Total Amount!', 'error');
+
+  let line;
+  if (mode === 'catalog') {
+    const id = document.getElementById('qsItemId').value;
+    const catItem = state.catalog.find(i => i.id === id);
+    if (!catItem) return toast('Select a valid item', 'error');
+    if (catItem.stock < qty) return toast(`Insufficient stock! Only ${catItem.stock} available.`, 'error');
+    catItem.stock -= qty;
+    line = {
+      catalogId: catItem.id,
+      nameHi: catItem.nameHi,
+      nameEn: catItem.nameEn,
+      variety: catItem.variety,
+      qty, unitRate,
+      discountType: document.getElementById('qsDiscTypeBtn').dataset.type,
+      discountVal: Number(document.getElementById('qsDiscVal').value) || 0,
+      discountAmt: Math.max(0, Math.round((qty * unitRate - total) * 100) / 100),
+      total,
+      isOpenItem: false
+    };
+  } else {
+    const nameEn = document.getElementById('qsOpenEn').value.trim();
+    const nameHi = document.getElementById('qsOpenHi').value.trim() || nameEn;
+    if (!nameEn) return toast('Enter Open Item name', 'error');
+    line = {
+      catalogId: null, nameHi, nameEn, variety: '',
+      qty, unitRate, discountType: 'flat', discountVal: 0, discountAmt: 0,
+      total, isOpenItem: true
+    };
+  }
+
+  const sale = {
+    id: uid('sale'),
+    billNo: `SN-${1001 + state.sales.length}`,
+    date,
+    createdAt: formatDateTimeDDMMYYYY(),
+    customerName: document.getElementById('qsCustName').value.trim() || 'Walk-in Customer',
+    customerPhone: document.getElementById('qsCustPhone').value.trim(),
+    items: [line],
+    subtotal: total,
+    billDiscountType: 'flat',
+    billDiscountVal: 0,
+    billDiscountAmt: 0,
+    netTotal: total,
+    cashAmount: cash,
+    upiAmount: upi,
+    billPhoto: qsPhoto
+  };
+
+  state.sales.unshift(sale);
+  saveState();
+  closeModal();
+  renderCurrentView();
+  openSaleReceiptModal(sale.id);
+  toast(`Quick Sale ${sale.billNo} recorded!`);
+}
+
+/* ============================================================================
+   4. SALES HISTORY & WHATSAPP RECEIPT
+============================================================================ */
+function renderSales(el) {
+  const q = salesSearch.trim().toLowerCase();
+  const list = state.sales.filter(s => {
+    if (!q) return true;
+    const hay = `${s.billNo} ${s.customerName} ${s.customerPhone} ${s.date} ${s.items.map(i=>i.nameEn+i.nameHi).join(' ')}`.toLowerCase();
+    return hay.includes(q);
+  });
+
+  el.innerHTML = `
+    <div class="card" style="margin-bottom:14px;">
+      <div style="display:flex;gap:10px;justify-content:space-between;flex-wrap:wrap;align-items:center;">
+        <input type="text" class="input" style="max-width:320px;" placeholder="Search bill #, customer, date or plant..."
+               value="${esc(salesSearch)}" oninput="salesSearch=this.value; renderSales(document.getElementById('mainContent'))" />
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-outline btn-sm" onclick="openAddOpenItemToCartModal()">+ Open Item to Cart</button>
+          <button class="btn btn-accent btn-sm" onclick="openQuickSaleModal()">⚡ New Quick Sale</button>
+          <button class="btn btn-primary btn-sm" onclick="toggleCartDrawer(true)">🛒 Open POS Cart (${cart.length})</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Bill # & Date</th>
+            <th>Customer</th>
+            <th>Items</th>
+            <th>Net Total</th>
+            <th>Cash / UPI Split</th>
+            <th>Lock Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${list.length === 0 ? `<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--muted);">No sales records found.</td></tr>` : list.map(s => {
+            const locked = isOlderThan10Days(s.date) && !unlockedRecordIds.has(s.id);
+            return `
+              <tr>
+                <td><b>${esc(s.billNo)}</b><br><small style="color:var(--muted)">${esc(s.date)}</small></td>
+                <td>${esc(s.customerName)}<br><small style="color:var(--muted)">${esc(s.customerPhone || '-')}</small></td>
+                <td>
+                  ${s.items.map(i => `<div>• ${esc(i.nameHi)} / ${esc(i.nameEn)} × ${i.qty} ${i.isOpenItem?'<span class="badge badge-blue">Open</span>':''}</div>`).join('')}
+                </td>
+                <td><b>${money(s.netTotal)}</b>${s.billDiscountAmt > 0 ? `<br><small style="color:var(--muted)">Disc: -${money(s.billDiscountAmt)}</small>` : ''}</td>
+                <td>
+                  <span class="badge badge-green">💵 ${money(s.cashAmount)}</span>
+                  <span class="badge badge-blue">📱 ${money(s.upiAmount)}</span>
+                </td>
+                <td>
+                  ${locked
+                    ? `<button class="badge badge-amber" onclick="unlockRecord('${s.id}','${s.date}')">🔒 Locked (>10d)</button>`
+                    : `<span class="badge badge-green">🔓 Editable</span>`}
+                </td>
+                <td>
+                  <div style="display:flex;gap:5px;flex-wrap:wrap;">
+                    <button class="btn btn-xs btn-whatsapp" onclick="openSaleReceiptModal('${s.id}')">💬 Bill</button>
+                    <button class="btn btn-xs btn-danger" onclick="deleteSale('${s.id}')">🗑</button>
+                  </div>
+                </td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+async function unlockRecord(id, date) {
+  await ensureUnlockedRecord(id, date, 'unlock');
+  renderCurrentView();
+}
+
+async function deleteSale(id) {
+  const s = state.sales.find(x => x.id === id);
+  if (!s) return;
+  if (!(await ensureUnlockedRecord(s.id, s.date, 'delete'))) return;
+  const ok = await requireMasterPassword(`Delete Sale ${s.billNo} (${money(s.netTotal)})? Stock will be restored for catalog items.`);
+  if (!ok) return;
+
+  for (const line of s.items) {
+    if (!line.isOpenItem && line.catalogId) {
+      const item = state.catalog.find(i => i.id === line.catalogId);
+      if (item) item.stock += Number(line.qty) || 0;
+    }
+  }
+  state.sales = state.sales.filter(x => x.id !== id);
+  saveState();
+  renderCurrentView();
+  toast(`Sale ${s.billNo} deleted & stock restored.`);
+}
+
+function buildWhatsAppBillText(s) {
+  const nursery = state.settings.nurseryName || 'Sach Nursery';
+  const lines = s.items.map((i, idx) =>
+    `${idx + 1}. ${i.nameHi} (${i.nameEn})${i.variety ? ' - ' + i.variety : ''}\n   ${i.qty} x ₹${i.unitRate} = ₹${i.total}`
+  ).join('\n');
+  return `*🌿 ${nursery}*\nBill No: *${s.billNo}*\nDate: *${s.date}*\nCustomer: ${s.customerName}\n----------------------------\n${lines}\n----------------------------\nSubtotal: ₹${s.subtotal}${s.billDiscountAmt > 0 ? `\nDiscount: -₹${s.billDiscountAmt}` : ''}\n*Grand Total: ₹${s.netTotal}*\nPaid via: Cash ₹${s.cashAmount} | UPI ₹${s.upiAmount}\n\nThank you for visiting *${nursery}*! 🌱`;
+}
+
+function openSaleReceiptModal(saleId) {
+  const s = state.sales.find(x => x.id === saleId);
+  if (!s) return;
+  const msg = buildWhatsAppBillText(s);
+  const phoneDigits = (s.customerPhone || '').replace(/\D/g, '');
+  const waTarget = phoneDigits.length === 10 ? `91${phoneDigits}` : phoneDigits;
+  const waUrl = `https://wa.me/${waTarget}?text=${encodeURIComponent(msg)}`;
+
+  openModal(`🧾 Bill Receipt — ${esc(s.billNo)}`, `
+    <div style="border:1px dashed var(--border);border-radius:10px;padding:14px;background:var(--surface-2);margin-bottom:12px;">
+      <div style="text-align:center;margin-bottom:10px;">
+        <h3 style="color:var(--primary);">${esc(state.settings.nurseryName)}</h3>
+        <div style="font-size:0.82rem;color:var(--muted);">Bill: <b>${esc(s.billNo)}</b> • Date: <b>${esc(s.date)}</b></div>
+        <div style="font-size:0.82rem;">Customer: ${esc(s.customerName)} ${s.customerPhone ? `(${esc(s.customerPhone)})` : ''}</div>
+      </div>
+      <table style="font-size:0.84rem;">
+        <thead><tr><th>Item</th><th>Qty</th><th>Rate</th><th>Total</th></tr></thead>
+        <tbody>
+          ${s.items.map(i => `
+            <tr>
+              <td>${esc(i.nameHi)} / ${esc(i.nameEn)}</td>
+              <td>${i.qty}</td>
+              <td>${money(i.unitRate)}</td>
+              <td><b>${money(i.total)}</b></td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+      <div style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px;display:flex;justify-content:space-between;font-weight:800;">
+        <span>Net Total</span><span style="color:var(--primary);">${money(s.netTotal)}</span>
+      </div>
+      <div style="font-size:0.8rem;color:var(--muted);display:flex;justify-content:space-between;">
+        <span>Cash: ${money(s.cashAmount)}</span><span>UPI Online: ${money(s.upiAmount)}</span>
+      </div>
+    </div>
+
+    ${s.billPhoto ? `<div style="margin-bottom:12px;"><img src="${s.billPhoto}" style="max-height:180px;border-radius:8px;border:1px solid var(--border);" /></div>` : ''}
+
+    <label class="label">Formatted WhatsApp Message</label>
+    <textarea class="textarea" id="waBillPreview" readonly style="font-size:0.8rem;min-height:130px;">${esc(msg)}</textarea>
+  `, `
+    <button class="btn btn-outline" onclick="navigator.clipboard?.writeText(document.getElementById('waBillPreview').value); toast('Bill text copied!')">📋 Copy Text</button>
+    <a class="btn btn-whatsapp" href="${waUrl}" target="_blank" rel="noopener">💬 Send WhatsApp Bill</a>
+    <button class="btn btn-primary" onclick="closeModal()">Done</button>
+  `);
+}
+
+/* ============================================================================
+   5. PURCHASES
+============================================================================ */
+let purPhoto = '';
+function renderPurchases(el) {
+  el.innerHTML = `
+    <div class="card" style="margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+      <div>
+        <strong>Supplier Purchases & Restocking</strong>
+        <div style="font-size:0.8rem;color:var(--muted);">Automatically adds stock to catalog & supports editable Total Cost with Cash/UPI split</div>
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="openPurchaseModal()">+ Record Purchase</button>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Bill # & Date</th>
+            <th>Supplier</th>
+            <th>Item</th>
+            <th>Qty & Unit Cost</th>
+            <th>Total Cost</th>
+            <th>Cash / UPI</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${state.purchases.length === 0 ? `<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--muted);">No purchases recorded.</td></tr>` : state.purchases.map(p => {
+            const locked = isOlderThan10Days(p.date) && !unlockedRecordIds.has(p.id);
+            return `
+              <tr>
+                <td><b>${esc(p.billNo)}</b><br><small>${esc(p.date)}</small></td>
+                <td>${esc(p.supplierName)}</td>
+                <td>${esc(p.itemName)}</td>
+                <td>${p.qty} × ${money(p.unitCost)}</td>
+                <td><b>${money(p.total)}</b></td>
+                <td><span class="badge badge-green">💵 ${money(p.cashAmount)}</span> <span class="badge badge-blue">📱 ${money(p.upiAmount)}</span></td>
+                <td>${locked ? `<button class="badge badge-amber" onclick="unlockRecord('${p.id}','${p.date}')">🔒 Locked</button>` : `<span class="badge badge-green">🔓 Open</span>`}</td>
+                <td>
+                  ${p.billPhoto ? `<button class="btn btn-xs btn-outline" onclick="viewBillLightbox('${p.billPhoto}','${esc(p.billNo)}')">🖼️</button>` : ''}
+                  <button class="btn btn-xs btn-danger" onclick="deletePurchase('${p.id}')">🗑</button>
+                </td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function openPurchaseModal(preselectCatalogId = '') {
+  purPhoto = '';
+  const firstId = preselectCatalogId || state.catalog[0]?.id || '';
+  openModal('📦 Record Stock Purchase', `
+    <div class="form-grid">
+      <div class="form-group">
+        <label class="label">Purchase Date (DD-MM-YYYY)</label>
+        ${renderDateField('purDate', formatDateDDMMYYYY())}
+      </div>
+      <div class="form-group">
+        <label class="label">Supplier / Nursery Name *</label>
+        <input type="text" class="input" id="purSupplier" placeholder="e.g., Saharanpur Wholesale" />
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="label">Catalog Item to Restock *</label>
+      <select class="select" id="purCatalogId">
+        ${state.catalog.map(i => `
+          <option value="${esc(i.id)}" ${i.id===firstId?'selected':''}>${esc(i.nameHi)} / ${esc(i.nameEn)} ${i.variety?`(${esc(i.variety)})`:''} [Current: ${i.stock}]</option>
+        `).join('')}
+      </select>
+    </div>
+
+    <div class="form-grid">
+      <div class="form-group">
+        <label class="label">Quantity *</label>
+        <input type="number" min="1" class="input" id="purQty" value="10" oninput="recalcPurchaseFromUnit()" />
+      </div>
+      <div class="form-group">
+        <label class="label">Per-Unit Cost (₹)</label>
+        <input type="number" min="0" step="0.01" class="input" id="purUnitCost" value="50" oninput="recalcPurchaseFromUnit()" />
+      </div>
+      <div class="form-group">
+        <label class="label">Total Cost (Editable ₹) *</label>
+        <input type="number" min="0" step="0.01" class="input" id="purTotal" value="500" style="font-weight:800;" oninput="recalcPurchaseFromTotal()" />
+      </div>
+    </div>
+
+    <div class="split-box" style="margin-bottom:12px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+        <strong style="font-size:0.84rem;">Two-Way Split (Cash + UPI Online Only)</strong>
+        <div>
+          <button type="button" class="btn btn-xs btn-outline" onclick="setPurSplit('cash')">100% Cash</button>
+          <button type="button" class="btn btn-xs btn-outline" onclick="setPurSplit('upi')">100% UPI</button>
+        </div>
+      </div>
+      <div class="form-grid">
+        <div>
+          <label class="label">💵 Cash (₹)</label>
+          <input type="number" min="0" step="0.01" class="input" id="purCash" value="500" oninput="onPurCashInput()" />
+        </div>
+        <div>
+          <label class="label">📱 UPI Online (₹)</label>
+          <input type="number" min="0" step="0.01" class="input" id="purUpi" value="0" oninput="onPurUpiInput()" />
+        </div>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="label">Attach Supplier Bill Photo (Optional)</label>
+      <input type="file" accept="image/*" class="input" onchange="handlePurPhoto(this.files[0])" />
+    </div>
+  `, `
+    <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+    <button class="btn btn-primary" onclick="submitPurchase()">✅ Save Purchase & Add Stock</button>
+  `);
+}
+
+function recalcPurchaseFromUnit() {
+  const q = Math.max(1, Number(document.getElementById('purQty').value) || 1);
+  const u = Math.max(0, Number(document.getElementById('purUnitCost').value) || 0);
+  const t = Math.round(q * u * 100) / 100;
+  document.getElementById('purTotal').value = t;
+  document.getElementById('purCash').value = t;
+  document.getElementById('purUpi').value = 0;
+}
+
+function recalcPurchaseFromTotal() {
+  const q = Math.max(1, Number(document.getElementById('purQty').value) || 1);
+  const t = Math.max(0, Number(document.getElementById('purTotal').value) || 0);
+  document.getElementById('purUnitCost').value = Math.round((t / q) * 100) / 100;
+  document.getElementById('purCash').value = t;
+  document.getElementById('purUpi').value = 0;
+}
+
+function setPurSplit(mode) {
+  const t = Math.max(0, Number(document.getElementById('purTotal').value) || 0);
+  document.getElementById('purCash').value = mode === 'cash' ? t : 0;
+  document.getElementById('purUpi').value = mode === 'upi' ? t : 0;
+}
+
+function onPurCashInput() {
+  const t = Math.max(0, Number(document.getElementById('purTotal').value) || 0);
+  let c = Math.max(0, Math.min(t, Number(document.getElementById('purCash').value) || 0));
+  c = Math.round(c * 100) / 100;
+  document.getElementById('purCash').value = c;
+  document.getElementById('purUpi').value = Math.round((t - c) * 100) / 100;
+}
+
+function onPurUpiInput() {
+  const t = Math.max(0, Number(document.getElementById('purTotal').value) || 0);
+  let u = Math.max(0, Math.min(t, Number(document.getElementById('purUpi').value) || 0));
+  u = Math.round(u * 100) / 100;
+  document.getElementById('purUpi').value = u;
+  document.getElementById('purCash').value = Math.round((t - u) * 100) / 100;
+}
+
+async function handlePurPhoto(file) {
+  if (!file) return;
+  purPhoto = await compressImageFile(file);
+  toast('Purchase bill photo attached');
+}
+
+function submitPurchase() {
+  const date = document.getElementById('purDate').value.trim();
+  if (!parseDDMMYYYY(date)) return toast('Use DD-MM-YYYY format', 'error');
+  const supplierName = document.getElementById('purSupplier').value.trim() || 'Supplier';
+  const catalogId = document.getElementById('purCatalogId').value;
+  const catItem = state.catalog.find(i => i.id === catalogId);
+  if (!catItem) return toast('Select an item', 'error');
+
+  const qty = Math.max(1, Number(document.getElementById('purQty').value) || 1);
+  const unitCost = Math.max(0, Number(document.getElementById('purUnitCost').value) || 0);
+  const total = Math.max(0, Number(document.getElementById('purTotal').value) || 0);
+  const cashAmount = Math.max(0, Number(document.getElementById('purCash').value) || 0);
+  const upiAmount = Math.max(0, Number(document.getElementById('purUpi').value) || 0);
+
+  if (total <= 0) return toast('Total purchase amount must be greater than ₹0', 'error');
+  if (Math.abs((cashAmount + upiAmount) - total) > 0.05) return toast('Cash + UPI must equal Total Cost', 'error');
+
+  catItem.stock += qty;
+  state.purchases.unshift({
+    id: uid('pur'),
+    billNo: `PUR-${201 + state.purchases.length}`,
+    date,
+    createdAt: formatDateTimeDDMMYYYY(),
+    supplierName,
+    catalogId: catItem.id,
+    itemName: `${catItem.nameHi} / ${catItem.nameEn}`,
+    qty, unitCost, total, cashAmount, upiAmount,
+    billPhoto: purPhoto
+  });
+  saveState();
+  closeModal();
+  renderCurrentView();
+  toast(`Purchase recorded & +${qty} stock added!`);
+}
+
+async function deletePurchase(id) {
+  const p = state.purchases.find(x => x.id === id);
+  if (!p) return;
+  if (!(await ensureUnlockedRecord(p.id, p.date, 'delete'))) return;
+  const ok = await requireMasterPassword(`Delete Purchase ${p.billNo}?`);
+  if (!ok) return;
+  const item = state.catalog.find(i => i.id === p.catalogId);
+  if (item) item.stock = Math.max(0, item.stock - p.qty);
+  state.purchases = state.purchases.filter(x => x.id !== id);
+  saveState();
+  renderCurrentView();
+  toast('Purchase deleted.');
+}
+
+/* ============================================================================
+   6. STOCK ADJUSTMENTS (FREE DONATIONS & DAMAGE/LOSS)
+============================================================================ */
+function renderAdjustments(el) {
+  const filtered = state.adjustments.filter(a => a.type === adjTab);
+  el.innerHTML = `
+    <div class="tabs">
+      <button class="tab-btn ${adjTab==='donation'?'active':''}" onclick="adjTab='donation'; renderCurrentView()">🎁 Free Sales / Donations (₹0 Revenue)</button>
+      <button class="tab-btn ${adjTab==='damage'?'active':''}" onclick="adjTab='damage'; renderCurrentView()">🥀 Stock Damage / Loss</button>
+    </div>
+
+    <div class="card" style="margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+      <div>
+        <strong>${adjTab === 'donation' ? 'Free Sales / Donations Outflow' : 'Stock Damage / Loss Register'}</strong>
+        <div style="font-size:0.8rem;color:var(--muted);">
+          ${adjTab === 'donation'
+            ? 'Deducts inventory with ₹0 monetary revenue and tracks donation value separately.'
+            : 'Deducts damaged/dead plants from inventory and tracks estimated loss separately from revenue.'}
+        </div>
+      </div>
+      <button class="btn ${adjTab==='donation'?'btn-primary':'btn-danger'} btn-sm" onclick="openAdjustmentModal('${adjTab}')">
+        + Record ${adjTab === 'donation' ? 'Free Donation' : 'Damage / Loss'}
+      </button>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Date (DD-MM-YYYY)</th>
+            <th>Item</th>
+            <th>Qty Deducted</th>
+            <th>${adjTab==='donation' ? 'Est. Value (₹0 Rev)' : 'Estimated Loss Value'}</th>
+            <th>Recipient / Reason</th>
+            <th>Lock</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${filtered.length === 0 ? `<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--muted);">No records in this tab.</td></tr>` : filtered.map(a => {
+            const locked = isOlderThan10Days(a.date) && !unlockedRecordIds.has(a.id);
+            return `
+              <tr>
+                <td>${esc(a.date)}</td>
+                <td><b>${esc(a.itemName)}</b></td>
+                <td><span class="badge ${adjTab==='donation'?'badge-purple':'badge-red'}">-${a.qty}</span></td>
+                <td><b>${money(a.estimatedValue)}</b></td>
+                <td>${esc(a.reason)}</td>
+                <td>${locked ? `<button class="badge badge-amber" onclick="unlockRecord('${a.id}','${a.date}')">🔒 Locked</button>` : `<span class="badge badge-green">🔓 Open</span>`}</td>
+                <td><button class="btn btn-xs btn-danger" onclick="deleteAdjustment('${a.id}')">🗑</button></td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function openAdjustmentModal(type) {
+  const first = state.catalog[0];
+  openModal(type === 'donation' ? '🎁 Record Free Sale / Donation' : '🥀 Record Stock Damage / Loss', `
+    <div class="form-grid">
+      <div class="form-group">
+        <label class="label">Date (DD-MM-YYYY)</label>
+        ${renderDateField('adjDate', formatDateDDMMYYYY())}
+      </div>
+      <div class="form-group">
+        <label class="label">Select Catalog Item *</label>
+        <select class="select" id="adjItemId" onchange="syncAdjEstimatedVal()">
+          ${state.catalog.map(i => `<option value="${esc(i.id)}">${esc(i.nameHi)} / ${esc(i.nameEn)} [Stock: ${i.stock}, ₹${i.rate}]</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label class="label">Quantity to Deduct *</label>
+        <input type="number" min="1" class="input" id="adjQty" value="1" oninput="syncAdjEstimatedVal()" />
+      </div>
+      <div class="form-group">
+        <label class="label">${type==='donation' ? 'Estimated Value (Tracked Separately, ₹0 Revenue)' : 'Estimated Loss Value (₹)'}</label>
+        <input type="number" min="0" step="0.01" class="input" id="adjEstVal" value="${first ? first.rate : 0}" />
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="label">${type==='donation' ? 'Recipient / Purpose *' : 'Cause of Damage / Loss *'}</label>
+      <input type="text" class="input" id="adjReason" placeholder="${type==='donation' ? 'e.g., Temple Plantation / VIP Gift' : 'e.g., Heat Wilt / Pest / Transit Breakage'}" />
+    </div>
+  `, `
+    <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+    <button class="btn ${type==='donation'?'btn-primary':'btn-danger'}" onclick="submitAdjustment('${type}')">Save Adjustment</button>
+  `);
+}
+
+function syncAdjEstimatedVal() {
+  const item = state.catalog.find(i => i.id === document.getElementById('adjItemId').value);
+  const qty = Math.max(1, Number(document.getElementById('adjQty').value) || 1);
+  if (item) document.getElementById('adjEstVal').value = Math.round(item.rate * qty * 100) / 100;
+}
+
+function submitAdjustment(type) {
+  const date = document.getElementById('adjDate').value.trim();
+  if (!parseDDMMYYYY(date)) return toast('Invalid DD-MM-YYYY date', 'error');
+  const item = state.catalog.find(i => i.id === document.getElementById('adjItemId').value);
+  if (!item) return;
+  const qty = Math.max(1, Number(document.getElementById('adjQty').value) || 1);
+  if (item.stock < qty) return toast(`Cannot deduct ${qty}; only ${item.stock} in stock!`, 'error');
+  const estimatedValue = Math.max(0, Number(document.getElementById('adjEstVal').value) || 0);
+  const reason = document.getElementById('adjReason').value.trim();
+  if (!reason) return toast('Enter a recipient or reason', 'error');
+
+  item.stock -= qty;
+  state.adjustments.unshift({
+    id: uid('adj'),
+    type,
+    date,
+    createdAt: formatDateTimeDDMMYYYY(),
+    catalogId: item.id,
+    itemName: `${item.nameHi} / ${item.nameEn}`,
+    qty, estimatedValue, reason
+  });
+  saveState();
+  closeModal();
+  renderCurrentView();
+  toast(type === 'donation' ? 'Free Donation recorded (₹0 revenue)' : 'Stock Damage/Loss recorded');
+}
+
+async function deleteAdjustment(id) {
+  const a = state.adjustments.find(x => x.id === id);
+  if (!a) return;
+  if (!(await ensureUnlockedRecord(a.id, a.date, 'delete'))) return;
+  const ok = await requireMasterPassword(`Delete this ${a.type} record and restore +${a.qty} stock?`);
+  if (!ok) return;
+  const item = state.catalog.find(i => i.id === a.catalogId);
+  if (item) item.stock += a.qty;
+  state.adjustments = state.adjustments.filter(x => x.id !== id);
+  saveState();
+  renderCurrentView();
+  toast('Adjustment deleted & stock restored.');
+}
+
+/* ============================================================================
+   7. WORKER MANAGEMENT & DAILY ATTENDANCE (DD-MM-YYYY + TIME IN/OUT + SUMMARY)
+============================================================================ */
+function calcHours(inStr, outStr) {
+  const parseDT = s => {
+    const m = String(s || '').trim().match(/^(\d{2})-(\d{2})-(\d{4})\s+(\d{2}):(\d{2})$/);
+    if (!m) return null;
+    return new Date(+m[3], +m[2] - 1, +m[1], +m[4], +m[5]);
+  };
+  const d1 = parseDT(inStr), d2 = parseDT(outStr);
+  if (!d1 || !d2 || d2 <= d1) return 0;
+  return Math.round(((d2 - d1) / (1000 * 60 * 60)) * 100) / 100;
+}
+
+function renderWorkforce(el) {
+  el.innerHTML = `
+    <div class="tabs">
+      <button class="tab-btn ${workerTab==='attendance'?'active':''}" onclick="workerTab='attendance'; renderCurrentView()">📅 Daily Attendance</button>
+      <button class="tab-btn ${workerTab==='summary'?'active':''}" onclick="workerTab='summary'; renderCurrentView()">📊 Monthly Summary & Wages</button>
+      <button class="tab-btn ${workerTab==='profiles'?'active':''}" onclick="workerTab='profiles'; renderCurrentView()">👷 Worker Profiles (${state.workers.length})</button>
+    </div>
+    <div id="workerTabBody"></div>
+  `;
+
+  const body = document.getElementById('workerTabBody');
+  if (workerTab === 'attendance') {
+    const locked = isOlderThan10Days(attendanceDate) && !unlockedRecordIds.has('att_date_' + attendanceDate);
+    body.innerHTML = `
+      <div class="card" style="margin-bottom:14px;display:flex;gap:12px;align-items:end;flex-wrap:wrap;justify-content:space-between;">
+        <div style="min-width:240px;">
+          <label class="label">Attendance Date (DD-MM-YYYY)</label>
+          ${renderDateField('attDateInput', attendanceDate, "attendanceDate=document.getElementById('attDateInput').value; renderCurrentView()")}
+        </div>
+        <div>
+          ${locked
+            ? `<button class="btn btn-warning btn-sm" onclick="unlockAttendanceDate()">🔒 Date >10 days old (Unlock to Edit)</button>`
+            : `<span class="badge badge-green">🔓 Attendance Editable for ${esc(attendanceDate)}</span>`}
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Worker</th>
+              <th>Status</th>
+              <th>Time-In (DD-MM-YYYY HH:MM)</th>
+              <th>Time-Out (DD-MM-YYYY HH:MM)</th>
+              <th>Hours</th>
+              <th>Save</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${state.workers.map(w => {
+              const rec = state.attendance.find(a => a.workerId === w.id && a.date === attendanceDate) || {
+                status: 'Present',
+                timeIn: `${attendanceDate} 08:30`,
+                timeOut: `${attendanceDate} 17:00`,
+                hours: 8.5
+              };
+              return `
+                <tr>
+                  <td><b>${esc(w.name)}</b><br><small style="color:var(--muted)">${esc(w.role)} • ${money(w.dailyWage)}/day</small></td>
+                  <td>
+                    <select class="select" id="attSt_${w.id}" ${locked?'disabled':''}>
+                      ${['Present','Half-Day','Absent'].map(st => `<option value="${st}" ${rec.status===st?'selected':''}>${st}</option>`).join('')}
+                    </select>
+                  </td>
+                  <td><input type="text" class="input" id="attIn_${w.id}" value="${esc(rec.timeIn || `${attendanceDate} 08:30`)}" ${locked?'disabled':''} /></td>
+                  <td><input type="text" class="input" id="attOut_${w.id}" value="${esc(rec.timeOut || `${attendanceDate} 17:00`)}" ${locked?'disabled':''} /></td>
+                  <td><b>${rec.status === 'Absent' ? 0 : (rec.hours || calcHours(rec.timeIn, rec.timeOut))} hrs</b></td>
+                  <td>
+                    <button class="btn btn-xs btn-primary" ${locked?'disabled':''} onclick="saveWorkerAttendance('${w.id}')">Save</button>
+                  </td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  } else if (workerTab === 'summary') {
+    body.innerHTML = `
+      <div class="card" style="margin-bottom:14px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+        <div>
+          <label class="label">Select Month (MM-YYYY)</label>
+          <input type="text" class="input" style="max-width:160px;" value="${esc(attendanceMonth)}"
+                 placeholder="MM-YYYY" onchange="attendanceMonth=this.value.trim(); renderCurrentView()" />
+        </div>
+        <div style="font-size:0.84rem;color:var(--muted);">Showing attendance & earned wages for <b>${esc(attendanceMonth)}</b></div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Worker</th>
+              <th>Daily Wage</th>
+              <th>Present</th>
+              <th>Half-Day</th>
+              <th>Absent</th>
+              <th>Total Hours</th>
+              <th>Estimated Earned Pay</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${state.workers.map(w => {
+              const logs = state.attendance.filter(a => a.workerId === w.id && a.date.endsWith(attendanceMonth));
+              const p = logs.filter(l => l.status === 'Present').length;
+              const h = logs.filter(l => l.status === 'Half-Day').length;
+              const ab = logs.filter(l => l.status === 'Absent').length;
+              const hrs = logs.reduce((s, l) => s + (l.status === 'Absent' ? 0 : (Number(l.hours) || 0)), 0);
+              const pay = (p * w.dailyWage) + (h * 0.5 * w.dailyWage);
+              return `
+                <tr>
+                  <td><b>${esc(w.name)}</b><br><small>${esc(w.role)}</small></td>
+                  <td>${money(w.dailyWage)}</td>
+                  <td><span class="badge badge-green">${p}</span></td>
+                  <td><span class="badge badge-amber">${h}</span></td>
+                  <td><span class="badge badge-red">${ab}</span></td>
+                  <td>${Math.round(hrs * 100) / 100} hrs</td>
+                  <td><b style="color:var(--primary);">${money(pay)}</b></td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  } else {
+    body.innerHTML = `
+      <div class="card" style="margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;">
+        <strong>Manage Workers</strong>
+        <button class="btn btn-primary btn-sm" onclick="openWorkerModal()">+ Add Worker</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Name & Role</th><th>Mobile</th><th>Daily Wage</th><th>Join Date</th><th>Actions</th></tr></thead>
+          <tbody>
+            ${state.workers.map(w => `
+              <tr>
+                <td><b>${esc(w.name)}</b><br><small style="color:var(--muted)">${esc(w.role)}</small></td>
+                <td>${esc(w.phone)}</td>
+                <td><b>${money(w.dailyWage)}</b></td>
+                <td>${esc(w.joinDate)}</td>
+                <td>
+                  <button class="btn btn-xs btn-outline" onclick="openWorkerModal('${w.id}')">✏️ Edit</button>
+                  <button class="btn btn-xs btn-danger" onclick="deleteWorker('${w.id}')">🗑</button>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+}
+
+async function unlockAttendanceDate() {
+  const ok = await requireMasterPassword(`Attendance for ${attendanceDate} is older than 10 days. Unlock?`);
+  if (ok) {
+    unlockedRecordIds.add('att_date_' + attendanceDate);
+    renderCurrentView();
+  }
+}
+
+function saveWorkerAttendance(workerId) {
+  const status = document.getElementById(`attSt_${workerId}`).value;
+  const timeIn = document.getElementById(`attIn_${workerId}`).value.trim();
+  const timeOut = document.getElementById(`attOut_${workerId}`).value.trim();
+  const hours = status === 'Absent' ? 0 : calcHours(timeIn, timeOut);
+
+  const existing = state.attendance.find(a => a.workerId === workerId && a.date === attendanceDate);
+  if (existing) {
+    Object.assign(existing, { status, timeIn, timeOut, hours });
+  } else {
+    state.attendance.push({ id: uid('att'), workerId, date: attendanceDate, status, timeIn, timeOut, hours });
+  }
+  saveState();
+  renderCurrentView();
+  toast('Attendance saved!');
+}
+
+function openWorkerModal(editId = null) {
+  const w = editId ? state.workers.find(x => x.id === editId) : null;
+  openModal(w ? '✏️ Edit Worker Profile' : '➕ Add Worker', `
+    <div class="form-grid">
+      <div class="form-group">
+        <label class="label">Worker Name *</label>
+        <input type="text" class="input" id="wrkName" value="${esc(w?.name || '')}" />
+      </div>
+      <div class="form-group">
+        <label class="label">Role / Designation</label>
+        <input type="text" class="input" id="wrkRole" value="${esc(w?.role || 'Nursery Mali')}" />
+      </div>
+    </div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label class="label">Mobile Number</label>
+        <input type="tel" class="input" id="wrkPhone" value="${esc(w?.phone || '')}" />
+      </div>
+      <div class="form-group">
+        <label class="label">Daily Wage (₹) *</label>
+        <input type="number" min="0" class="input" id="wrkWage" value="${w ? w.dailyWage : 500}" />
+      </div>
+      <div class="form-group">
+        <label class="label">Join Date (DD-MM-YYYY)</label>
+        ${renderDateField('wrkJoin', w ? w.joinDate : formatDateDDMMYYYY())}
+      </div>
+    </div>
+  `, `
+    <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+    <button class="btn btn-primary" onclick="saveWorker('${editId || ''}')">Save Worker</button>
+  `);
+}
+
+function saveWorker(editId) {
+  const name = document.getElementById('wrkName').value.trim();
+  const role = document.getElementById('wrkRole').value.trim();
+  const phone = document.getElementById('wrkPhone').value.trim();
+  const dailyWage = Math.max(0, Number(document.getElementById('wrkWage').value) || 0);
+  const joinDate = document.getElementById('wrkJoin').value.trim();
+  if (!name) return toast('Worker name required', 'error');
+  if (!parseDDMMYYYY(joinDate)) return toast('Join Date must be DD-MM-YYYY', 'error');
+
+  if (editId) {
+    const w = state.workers.find(x => x.id === editId);
+    if (w) Object.assign(w, { name, role, phone, dailyWage, joinDate });
+  } else {
+    state.workers.push({ id: uid('wrk'), name, role, phone, dailyWage, joinDate, active: true });
+  }
+  saveState();
+  closeModal();
+  renderCurrentView();
+  toast('Worker saved!');
+}
+
+async function deleteWorker(id) {
+  const w = state.workers.find(x => x.id === id);
+  if (!w) return;
+  const ok = await requireMasterPassword(`Delete worker "${w.name}" and their records?`);
+  if (!ok) return;
+  state.workers = state.workers.filter(x => x.id !== id);
+  state.attendance = state.attendance.filter(a => a.workerId !== id);
+  saveState();
+  renderCurrentView();
+  toast('Worker deleted.');
+}
+
+/* ============================================================================
+   8. PERSONAL NOTES (PIN, SEARCH, PRIVATE PASSWORD LOCK)
+============================================================================ */
+const unlockedNoteIds = new Set();
+
+function renderNotes(el) {
+  const q = noteSearch.trim().toLowerCase();
+  const sorted = [...state.notes]
+    .filter(n => !q || (`${n.title} ${n.locked && !unlockedNoteIds.has(n.id) ? '' : n.content}`).toLowerCase().includes(q))
+    .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
+
+  el.innerHTML = `
+    <div class="card" style="margin-bottom:14px;display:flex;gap:10px;justify-content:space-between;flex-wrap:wrap;align-items:center;">
+      <input type="text" class="input" style="max-width:300px;" placeholder="Search notes..."
+             value="${esc(noteSearch)}" oninput="noteSearch=this.value; renderNotes(document.getElementById('mainContent'))" />
+      <button class="btn btn-primary btn-sm" onclick="openNoteModal()">+ New Note / Reminder</button>
+    </div>
+
+    <div class="notes-grid">
+      ${sorted.length === 0 ? `<div class="card" style="color:var(--muted);">No notes found.</div>` : sorted.map(n => {
+        const isHidden = n.locked && !unlockedNoteIds.has(n.id);
+        return `
+          <div class="note-card ${n.pinned?'pinned':''}">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+              <strong style="font-size:0.98rem;">${n.pinned ? '📌 ' : ''}${esc(n.title)}</strong>
+              ${n.locked ? `<span class="badge badge-amber">🔒 Private</span>` : ''}
+            </div>
+            <div style="font-size:0.86rem;color:var(--text);white-space:pre-wrap;min-height:46px;">
+              ${isHidden
+                ? `<div style="color:var(--muted);font-style:italic;">Content password-protected. <button class="btn btn-xs btn-outline" onclick="unlockPrivateNote('${n.id}')">🔓 Unlock</button></div>`
+                : esc(n.content)}
+            </div>
+            <div style="margin-top:auto;padding-top:8px;border-top:1px solid rgba(0,0,0,0.06);display:flex;justify-content:space-between;align-items:center;font-size:0.74rem;color:var(--muted);">
+              <span>${esc(n.updatedAt)}</span>
+              <div style="display:flex;gap:4px;">
+                <button class="btn btn-xs btn-outline" onclick="togglePinNote('${n.id}')">${n.pinned?'Unpin':'Pin'}</button>
+                <button class="btn btn-xs btn-outline" onclick="openNoteModal('${n.id}')">✏️</button>
+                <button class="btn btn-xs btn-danger" onclick="deleteNote('${n.id}')">🗑</button>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `;
+}
+
+async function unlockPrivateNote(id) {
+  const ok = await requireMasterPassword('Enter Master Password to view private note');
+  if (ok) { unlockedNoteIds.add(id); renderCurrentView(); }
+}
+
+function togglePinNote(id) {
+  const n = state.notes.find(x => x.id === id);
+  if (n) { n.pinned = !n.pinned; saveState(); renderCurrentView(); }
+}
+
+async function openNoteModal(editId = null) {
+  const n = editId ? state.notes.find(x => x.id === editId) : null;
+  if (n && n.locked && !unlockedNoteIds.has(n.id)) {
+    const ok = await requireMasterPassword('Unlock private note to edit');
+    if (!ok) return;
+    unlockedNoteIds.add(n.id);
+  }
+  openModal(n ? '✏️ Edit Note' : '📝 New Personal Note', `
+    <div class="form-group">
+      <label class="label">Title *</label>
+      <input type="text" class="input" id="noteTitle" value="${esc(n?.title || '')}" />
+    </div>
+    <div class="form-group">
+      <label class="label">Content *</label>
+      <textarea class="textarea" id="noteContent" style="min-height:120px;">${esc(n?.content || '')}</textarea>
+    </div>
+    <div style="display:flex;gap:18px;">
+      <label style="display:flex;align-items:center;gap:6px;font-size:0.86rem;cursor:pointer;">
+        <input type="checkbox" id="notePinned" ${n?.pinned?'checked':''} /> 📌 Pin to top
+      </label>
+      <label style="display:flex;align-items:center;gap:6px;font-size:0.86rem;cursor:pointer;">
+        <input type="checkbox" id="noteLocked" ${n?.locked?'checked':''} /> 🔒 Password-Lock Note
+      </label>
+    </div>
+  `, `
+    <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+    <button class="btn btn-primary" onclick="saveNote('${editId || ''}')">Save Note</button>
+  `);
+}
+
+function saveNote(editId) {
+  const title = document.getElementById('noteTitle').value.trim();
+  const content = document.getElementById('noteContent').value.trim();
+  const pinned = document.getElementById('notePinned').checked;
+  const locked = document.getElementById('noteLocked').checked;
+  if (!title || !content) return toast('Enter title and content', 'error');
+  const now = formatDateTimeDDMMYYYY();
+
+  if (editId) {
+    const n = state.notes.find(x => x.id === editId);
+    if (n) Object.assign(n, { title, content, pinned, locked, updatedAt: now });
+  } else {
+    state.notes.unshift({ id: uid('note'), title, content, pinned, locked, createdAt: now, updatedAt: now });
+  }
+  saveState();
+  closeModal();
+  renderCurrentView();
+  toast('Note saved!');
+}
+
+async function deleteNote(id) {
+  const n = state.notes.find(x => x.id === id);
+  if (!n) return;
+  if (n.locked) {
+    const ok = await requireMasterPassword('Enter Master Password to delete locked note');
+    if (!ok) return;
+  }
+  state.notes = state.notes.filter(x => x.id !== id);
+  saveState();
+  renderCurrentView();
+  toast('Note deleted.');
+}
+
+/* ============================================================================
+   9. SCIENTIFIC PLANT CARE DATABASE
+============================================================================ */
+function renderPlantCare(el) {
+  const q = careSearch.trim().toLowerCase();
+  const list = state.plantCare.filter(c => {
+    if (careCatFilter !== 'all' && c.category !== careCatFilter) return false;
+    if (q) {
+      const hay = `${c.nameEn} ${c.nameHi} ${c.botanical} ${c.pests} ${c.soil}`.toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+
+  el.innerHTML = `
+    <div class="card" style="margin-bottom:14px;display:flex;gap:10px;justify-content:space-between;flex-wrap:wrap;align-items:center;">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;flex:1;">
+        <input type="text" class="input" style="max-width:290px;" placeholder="Search plant, botanical name, pest..."
+               value="${esc(careSearch)}" oninput="careSearch=this.value; renderPlantCare(document.getElementById('mainContent'))" />
+        <select class="select" style="max-width:220px;" onchange="careCatFilter=this.value; renderCurrentView()">
+          <option value="all">All Categories</option>
+          ${state.categories.map(c => `<option value="${esc(c.id)}" ${careCatFilter===c.id?'selected':''}>${esc(c.nameHi)} / ${esc(c.nameEn)}</option>`).join('')}
+        </select>
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="openCareModal()">+ Add Care Protocol</button>
+    </div>
+
+    <div class="care-grid">
+      ${list.map(c => `
+        <div class="card" style="display:flex;flex-direction:column;gap:8px;">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+            <div>
+              <strong style="font-size:1rem;">${esc(c.nameHi)} / ${esc(c.nameEn)}</strong>
+              <div style="font-size:0.78rem;font-style:italic;color:var(--primary);">${esc(c.botanical)}</div>
+            </div>
+            <span class="badge badge-green">${esc(getCategoryLabel(c.category))}</span>
+          </div>
+          <div style="font-size:0.83rem;display:flex;flex-direction:column;gap:5px;">
+            <div><b>☀️ Sunlight:</b> ${esc(c.sunlight)}</div>
+            <div><b>💧 Watering:</b> ${esc(c.watering)}</div>
+            <div><b>🪨 Soil & pH:</b> ${esc(c.soil)}</div>
+            <div><b>🧪 Fertilizer:</b> ${esc(c.fertilizer)}</div>
+            <div><b>✂️ Pruning:</b> ${esc(c.pruning)}</div>
+            <div><b>🐛 Pests & Cure:</b> ${esc(c.pests)}</div>
+          </div>
+          <div style="margin-top:auto;display:flex;justify-content:flex-end;gap:6px;padding-top:6px;">
+            <button class="btn btn-xs btn-outline" onclick="openCareModal('${c.id}')">✏️ Edit</button>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+function openCareModal(editId = null) {
+  const c = editId ? state.plantCare.find(x => x.id === editId) : null;
+  openModal(c ? '✏️ Edit Plant Care Sheet' : '🔬 Add Scientific Plant Care Sheet', `
+    <div class="form-grid">
+      <div class="form-group"><label class="label">Name (English) *</label><input class="input" id="careEn" value="${esc(c?.nameEn||'')}" /></div>
+      <div class="form-group"><label class="label">Name (Hindi) *</label><input class="input" id="careHi" value="${esc(c?.nameHi||'')}" /></div>
+      <div class="form-group"><label class="label">Botanical Name</label><input class="input" id="careBot" value="${esc(c?.botanical||'')}" /></div>
+      <div class="form-group"><label class="label">Category</label>
+        <select class="select" id="careCat">
+          ${state.categories.map(cat => `<option value="${esc(cat.id)}" ${(c?.category||'herbs')===cat.id?'selected':''}>${esc(cat.nameHi)} / ${esc(cat.nameEn)}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <div class="form-group"><label class="label">Sunlight Requirement</label><input class="input" id="careSun" value="${esc(c?.sunlight||'')}" /></div>
+    <div class="form-group"><label class="label">Watering Protocol</label><input class="input" id="careWater" value="${esc(c?.watering||'')}" /></div>
+    <div class="form-group"><label class="label">Soil Mix & Ideal pH</label><input class="input" id="careSoil" value="${esc(c?.soil||'')}" /></div>
+    <div class="form-group"><label class="label">Fertilizer / NPK Schedule</label><input class="input" id="careFert" value="${esc(c?.fertilizer||'')}" /></div>
+    <div class="form-group"><label class="label">Pruning & Propagation</label><input class="input" id="carePrune" value="${esc(c?.pruning||'')}" /></div>
+    <div class="form-group"><label class="label">Pests, Diseases & Remedies</label><input class="input" id="carePest" value="${esc(c?.pests||'')}" /></div>
+  `, `
+    <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+    <button class="btn btn-primary" onclick="saveCareSheet('${editId||''}')">Save Protocol</button>
+  `);
+}
+
+function saveCareSheet(editId) {
+  const obj = {
+    nameEn: document.getElementById('careEn').value.trim(),
+    nameHi: document.getElementById('careHi').value.trim(),
+    botanical: document.getElementById('careBot').value.trim(),
+    category: document.getElementById('careCat').value,
+    sunlight: document.getElementById('careSun').value.trim(),
+    watering: document.getElementById('careWater').value.trim(),
+    soil: document.getElementById('careSoil').value.trim(),
+    fertilizer: document.getElementById('careFert').value.trim(),
+    pruning: document.getElementById('carePrune').value.trim(),
+    pests: document.getElementById('carePest').value.trim()
+  };
+  if (!obj.nameEn || !obj.nameHi) return toast('Enter English and Hindi names', 'error');
+  if (editId) {
+    Object.assign(state.plantCare.find(x => x.id === editId), obj);
+  } else {
+    state.plantCare.unshift({ id: uid('care'), ...obj });
+  }
+  saveState();
+  closeModal();
+  renderCurrentView();
+  toast('Plant care protocol saved!');
+}
+
+/* ============================================================================
+   10. BILL GALLERY
+============================================================================ */
+function renderGallery(el) {
+  const allBills = [
+    ...state.sales.filter(s => s.billPhoto).map(s => ({ id: s.id, type: 'Sale', ref: s.billNo, date: s.date, party: s.customerName, amount: s.netTotal, photo: s.billPhoto })),
+    ...state.purchases.filter(p => p.billPhoto).map(p => ({ id: p.id, type: 'Purchase', ref: p.billNo, date: p.date, party: p.supplierName, amount: p.total, photo: p.billPhoto })),
+    ...state.bills.map(b => ({ id: b.id, type: b.type || 'Other', ref: b.title, date: b.date, party: b.note || '', amount: b.amount || 0, photo: b.photo, standalone: true }))
+  ].filter(b => galleryFilter === 'all' || b.type.toLowerCase() === galleryFilter);
+
+  el.innerHTML = `
+    <div class="card" style="margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+      <div style="display:flex;gap:6px;">
+        ${['all','sale','purchase','other'].map(f => `
+          <button class="btn btn-sm ${galleryFilter===f?'btn-primary':'btn-outline'}" onclick="galleryFilter='${f}'; renderCurrentView()">
+            ${f==='all'?'All Bills':f[0].toUpperCase()+f.slice(1)}
+          </button>
+        `).join('')}
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="openUploadStandaloneBillModal()">+ Upload Bill Photo</button>
+    </div>
+
+    ${allBills.length === 0 ? `<div class="card" style="text-align:center;padding:36px;color:var(--muted);">No bill photos uploaded yet. Attach bill photos during Sales/Purchases or click "+ Upload Bill Photo".</div>` : `
+      <div class="gallery-grid">
+        ${allBills.map(b => `
+          <div class="bill-card">
+            <img src="${b.photo}" alt="${esc(b.ref)}" onclick="viewBillLightbox('${b.photo}', '${esc(b.ref)} (${esc(b.date)})')" />
+            <div style="padding:10px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <span class="badge ${b.type==='Sale'?'badge-green':b.type==='Purchase'?'badge-blue':'badge-gray'}">${esc(b.type)}</span>
+                <small style="color:var(--muted)">${esc(b.date)}</small>
+              </div>
+              <div style="font-weight:700;margin-top:4px;">${esc(b.ref)} — ${money(b.amount)}</div>
+              <div style="font-size:0.78rem;color:var(--muted);">${esc(b.party)}</div>
+              ${b.standalone ? `<button class="btn btn-xs btn-danger" style="margin-top:6px;" onclick="deleteStandaloneBill('${b.id}')">Delete</button>` : ''}
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    `}
+  `;
+}
+
+function viewBillLightbox(src, title) {
+  openModal(`🖼️ ${esc(title)}`, `<div style="text-align:center;"><img src="${src}" style="max-width:100%;max-height:70vh;border-radius:8px;" /></div>`, `<button class="btn btn-primary" onclick="closeModal()">Close</button>`, 'modal-lg');
+}
+
+let standaloneBillPhoto = '';
+function openUploadStandaloneBillModal() {
+  standaloneBillPhoto = '';
+  openModal('🖼️ Upload Bill Photo', `
+    <div class="form-grid">
+      <div class="form-group"><label class="label">Bill Title / Ref *</label><input class="input" id="sbTitle" placeholder="e.g., Electricity / Nursery Bill" /></div>
+      <div class="form-group"><label class="label">Date (DD-MM-YYYY)</label>${renderDateField('sbDate', formatDateDDMMYYYY())}</div>
+    </div>
+    <div class="form-grid">
+      <div class="form-group"><label class="label">Amount (₹)</label><input type="number" min="0" class="input" id="sbAmount" value="0" /></div>
+      <div class="form-group"><label class="label">Note / Party</label><input class="input" id="sbNote" /></div>
+    </div>
+    <div class="form-group">
+      <label class="label">Select Image *</label>
+      <input type="file" accept="image/*" class="input" onchange="compressImageFile(this.files[0]).then(d=>{standaloneBillPhoto=d; toast('Photo ready');})" />
+    </div>
+  `, `
+    <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+    <button class="btn btn-primary" onclick="saveStandaloneBill()">Save to Gallery</button>
+  `);
+}
+
+function saveStandaloneBill() {
+  const title = document.getElementById('sbTitle').value.trim();
+  const date = document.getElementById('sbDate').value.trim();
+  const amount = Number(document.getElementById('sbAmount').value) || 0;
+  const note = document.getElementById('sbNote').value.trim();
+  if (!title || !standaloneBillPhoto) return toast('Provide title and image', 'error');
+  if (!parseDDMMYYYY(date)) return toast('Use DD-MM-YYYY format', 'error');
+  state.bills.unshift({ id: uid('bill'), type: 'Other', title, date, amount, note, photo: standaloneBillPhoto });
+  saveState();
+  closeModal();
+  renderCurrentView();
+  toast('Bill uploaded to Gallery!');
+}
+
+async function deleteStandaloneBill(id) {
+  const ok = await requireMasterPassword('Delete this bill photo from Gallery?');
+  if (!ok) return;
+  state.bills = state.bills.filter(b => b.id !== id);
+  saveState();
+  renderCurrentView();
+  toast('Bill deleted.');
+}
+
+/* ============================================================================
+   11. SETTINGS, SECURITY, 10-DAY LOCK & SMS/WHATSAPP OTP PASSWORD RESET
+============================================================================ */
+let generatedOtp = null;
+let otpVerified = false;
+
+function renderSettings(el) {
+  el.innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:16px;">
+      <div class="card">
+        <div class="card-header"><span class="card-title">🌿 Nursery Profile</span></div>
+        <div class="form-group">
+          <label class="label">Nursery Name (Appears on Bills & Header)</label>
+          <input type="text" class="input" id="setNurseryName" value="${esc(state.settings.nurseryName)}" />
+        </div>
+        <div class="form-group">
+          <label class="label">Registered Owner Mobile Number (For OTP Reset)</label>
+          <input type="tel" class="input" id="setOwnerMobile" value="${esc(state.settings.ownerMobile)}" placeholder="10-digit mobile number" />
+        </div>
+        <button class="btn btn-primary" onclick="saveNurseryProfile()">Save Profile</button>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">🔒 Master Security Password</span>
+          ${state.settings.isDefaultPassword ? `<span class="badge badge-amber">Default PIN: 1234</span>` : `<span class="badge badge-green">Custom Set</span>`}
+        </div>
+        <p style="font-size:0.82rem;color:var(--muted);margin-bottom:10px;">
+          Required before deleting catalog items, records, workers, private notes, or unlocking records older than <b>10 days</b>.
+        </p>
+        <div class="form-group">
+          <label class="label">Current Master Password</label>
+          <input type="password" class="input" id="setCurPw" placeholder="Current password (default: 1234)" />
+        </div>
+        <div class="form-group">
+          <label class="label">New Master Password</label>
+          <input type="password" class="input" id="setNewPw" placeholder="Enter new password" />
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-primary" onclick="changeMasterPassword()">Update Password</button>
+          <button class="btn btn-outline" onclick="openOtpResetModal()">📲 Forgot / Reset via SMS/WhatsApp OTP</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><span class="card-title">📊 Excel Data & Backup</span></div>
+        <p style="font-size:0.82rem;color:var(--muted);margin-bottom:12px;">
+          Export complete Excel workbook (Catalog, Sales, Purchases, Adjustments, Attendance, Notes) or import plants from Excel/CSV.
+        </p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-accent" onclick="exportAllExcel()">⬇ Export Full Excel</button>
+          <label class="btn btn-outline" style="cursor:pointer;">
+            ⬆ Import Excel / CSV
+            <input type="file" accept=".xlsx,.xls,.csv" style="display:none" onchange="importExcelFile(this.files[0]); this.value='';" />
+          </label>
+          <button class="btn btn-danger" onclick="factoryResetApp()">⚠️ Reset Demo Data</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function saveNurseryProfile() {
+  const name = document.getElementById('setNurseryName').value.trim();
+  const mobile = document.getElementById('setOwnerMobile').value.trim();
+  if (!name) return toast('Nursery name cannot be empty', 'error');
+  state.settings.nurseryName = name;
+  state.settings.ownerMobile = mobile;
+  saveState();
+  toast('Nursery profile updated!');
+}
+
+function changeMasterPassword() {
+  const cur = document.getElementById('setCurPw').value;
+  const nw = document.getElementById('setNewPw').value;
+  if (!verifyMasterPasswordInput(cur)) return toast('Current password is incorrect', 'error');
+  if (!nw || nw.length < 4) return toast('New password must be at least 4 characters', 'error');
+  state.settings.masterPassword = btoa(nw);
+  state.settings.isDefaultPassword = false;
+  saveState();
+  renderCurrentView();
+  toast('Master Password updated!');
+}
+
+function openOtpResetModal() {
+  const mobile = (state.settings.ownerMobile || '').trim();
+  if (!mobile || mobile.replace(/\D/g, '').length < 10) {
+    return toast('Please save a valid 10-digit Registered Owner Mobile Number first.', 'error');
+  }
+  generatedOtp = null;
+  otpVerified = false;
+  openModal('📲 Reset Master Password via SMS / WhatsApp OTP', `
+    <p style="font-size:0.85rem;color:var(--muted);margin-bottom:10px;">
+      Registered Owner Mobile: <b>${esc(mobile)}</b>
+    </p>
+    <div id="otpStep1">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+        <button class="btn btn-whatsapp btn-sm" onclick="dispatchResetOtp('WhatsApp')">💬 Send OTP via WhatsApp</button>
+        <button class="btn btn-primary btn-sm" onclick="dispatchResetOtp('SMS')">📩 Send OTP via SMS</button>
+      </div>
+      <div id="otpDispatchNotice"></div>
+    </div>
+    <div id="otpStep2" style="display:none;margin-top:12px;">
+      <div class="form-group">
+        <label class="label">Enter 6-Digit OTP *</label>
+        <input type="text" maxlength="6" class="input" id="otpCodeInput" placeholder="6-digit OTP" />
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="verifyResetOtp()">Verify OTP</button>
+    </div>
+    <div id="otpStep3" style="display:none;margin-top:12px;">
+      <div class="form-group">
+        <label class="label">Set New Master Password *</label>
+        <input type="password" class="input" id="otpNewMasterPw" placeholder="Minimum 4 characters" />
+      </div>
+      <button class="btn btn-accent" onclick="finalizeOtpPasswordReset()">✅ Reset Master Password</button>
+    </div>
+  `, `<button class="btn btn-outline" onclick="closeModal()">Close</button>`, 'modal-sm');
+}
+
+function dispatchResetOtp(channel) {
+  generatedOtp = String(Math.floor(100000 + Math.random() * 900000));
+  const digits = state.settings.ownerMobile.replace(/\D/g, '');
+  const waNum = digits.length === 10 ? `91${digits}` : digits;
+  const msg = `${state.settings.nurseryName} Master Password Reset OTP: ${generatedOtp}`;
+  const notice = document.getElementById('otpDispatchNotice');
+  notice.innerHTML = `
+    <div class="badge badge-green" style="display:block;white-space:normal;padding:10px;border-radius:8px;">
+      ✅ ${channel} OTP generated for <b>${esc(state.settings.ownerMobile)}</b>.<br>
+      <b>OTP Code: ${generatedOtp}</b> (Local verification code)
+      ${channel === 'WhatsApp' ? `<div style="margin-top:6px;"><a class="btn btn-xs btn-whatsapp" target="_blank" href="https://wa.me/${waNum}?text=${encodeURIComponent(msg)}">Open WhatsApp with OTP</a></div>` : ''}
+    </div>
+  `;
+  document.getElementById('otpStep2').style.display = 'block';
+}
+
+function verifyResetOtp() {
+  const entered = document.getElementById('otpCodeInput').value.trim();
+  if (!generatedOtp || entered !== generatedOtp) {
+    return toast('Invalid OTP code!', 'error');
+  }
+  otpVerified = true;
+  document.getElementById('otpStep2').style.display = 'none';
+  document.getElementById('otpStep3').style.display = 'block';
+  toast('OTP verified! Enter new Master Password.');
+}
+
+function finalizeOtpPasswordReset() {
+  if (!otpVerified) return;
+  const nw = document.getElementById('otpNewMasterPw').value;
+  if (!nw || nw.length < 4) return toast('Password must be at least 4 characters', 'error');
+  state.settings.masterPassword = btoa(nw);
+  state.settings.isDefaultPassword = false;
+  saveState();
+  closeModal();
+  renderCurrentView();
+  toast('Master Password successfully reset!');
+}
+
+async function factoryResetApp() {
+  const ok = await requireMasterPassword('Reset entire app to initial Sach Nursery catalog & demo data?');
+  if (!ok) return;
+  localStorage.removeItem(STORAGE_KEY);
+  state = createDefaultState();
+  saveState();
+  renderCurrentView();
+  toast('Application reset to initial defaults.');
+}
+
+/* ============================================================================
+   12. EXCEL EXPORT & IMPORT (SHEETJS + OFFLINE CSV FALLBACK)
+============================================================================ */
+function exportAllExcel() {
+  const catRows = state.catalog.map((i, idx) => ({
+    'S.No': idx + 1,
+    'Category': getCategoryLabel(i.category),
+    'Hindi Name': i.nameHi,
+    'English Name': i.nameEn,
+    'Variety': i.variety,
+    'Stock': i.stock,
+    'Threshold': i.threshold,
+    'Selling Rate': i.rate,
+    'Total Value': i.stock * i.rate
+  }));
+
+  const salesRows = state.sales.map(s => ({
+    'Bill No': s.billNo,
+    'Date (DD-MM-YYYY)': s.date,
+    'Customer': s.customerName,
+    'Phone': s.customerPhone,
+    'Items': s.items.map(i => `${i.nameEn} x${i.qty}`).join('; '),
+    'Net Total': s.netTotal,
+    'Cash': s.cashAmount,
+    'UPI Online': s.upiAmount
+  }));
+
+  const purRows = state.purchases.map(p => ({
+    'Bill No': p.billNo,
+    'Date (DD-MM-YYYY)': p.date,
+    'Supplier': p.supplierName,
+    'Item': p.itemName,
+    'Qty': p.qty,
+    'Unit Cost': p.unitCost,
+    'Total': p.total,
+    'Cash': p.cashAmount,
+    'UPI Online': p.upiAmount
+  }));
+
+  const adjRows = state.adjustments.map(a => ({
+    'Type': a.type === 'donation' ? 'Free Donation' : 'Damage/Loss',
+    'Date (DD-MM-YYYY)': a.date,
+    'Item': a.itemName,
+    'Qty': a.qty,
+    'Estimated Value': a.estimatedValue,
+    'Reason': a.reason
+  }));
+
+  const attRows = state.attendance.map(a => {
+    const w = state.workers.find(x => x.id === a.workerId);
+    return {
+      'Date (DD-MM-YYYY)': a.date,
+      'Worker': w ? w.name : a.workerId,
+      'Status': a.status,
+      'Time-In': a.timeIn,
+      'Time-Out': a.timeOut,
+      'Hours': a.hours
+    };
+  });
+
+  if (window.XLSX) {
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(catRows), 'Inventory_Catalog');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(salesRows.length ? salesRows : [{ Note: 'No sales' }]), 'Sales');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(purRows.length ? purRows : [{ Note: 'No purchases' }]), 'Purchases');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(adjRows.length ? adjRows : [{ Note: 'No adjustments' }]), 'Adjustments');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(attRows.length ? attRows : [{ Note: 'No attendance' }]), 'Attendance');
+    const fname = `${(state.settings.nurseryName || 'Sach_Nursery').replace(/\s+/g, '_')}_${formatDateDDMMYYYY()}.xlsx`;
+    XLSX.writeFile(wb, fname);
+    toast('Full Excel workbook exported!');
+  } else {
+    // Offline CSV fallback for Catalog
+    const headers = Object.keys(catRows[0] || {});
+    const csv = [headers.join(','), ...catRows.map(r => headers.map(h => `"${String(r[h] ?? '').replace(/"/g, '""')}"`).join(','))].join('\n');
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `Sach_Nursery_Catalog_${formatDateDDMMYYYY()}.csv`;
+    a.click();
+    toast('Offline mode: Catalog exported as UTF-8 CSV!');
+  }
+}
+
+async function importExcelFile(file) {
+  if (!file) return;
+  try {
+    let rows = [];
+    if (window.XLSX && !file.name.toLowerCase().endsWith('.csv')) {
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, { type: 'array' });
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+    } else {
+      const text = await file.text();
+      const lines = text.split(/\r?\n/).filter(Boolean);
+      if (lines.length < 2) return toast('Empty CSV file', 'error');
+      const headers = lines[0].split(',').map(h => h.replace(/^"|"$/g, '').trim());
+      rows = lines.slice(1).map(ln => {
+        const cols = ln.split(',').map(c => c.replace(/^"|"$/g, '').trim());
+        const obj = {};
+        headers.forEach((h, i) => obj[h] = cols[i] || '');
+        return obj;
+      });
+    }
+
+    let added = 0;
+    for (const r of rows) {
+      const nameEn = String(r['English Name'] || r['Name'] || r['nameEn'] || '').trim();
+      const nameHi = String(r['Hindi Name'] || r['Name'] || r['nameHi'] || nameEn).trim();
+      if (!nameEn && !nameHi) continue;
+      const variety = String(r['Variety'] || r['Verity'] || '').trim();
+      const rawRate = String(r['Selling Rate'] || r['Rate'] || '100');
+      const rateArr = rawRate.split(/[,/-]/).map(x => Number(x.trim())).filter(x => !isNaN(x) && x > 0);
+      const rate = rateArr[0] || 100;
+      const stock = Math.max(0, Number(r['Stock'] ?? 20) || 20);
+      const threshold = Math.max(0, Number(r['Threshold'] ?? 10) || 10);
+
+      state.catalog.unshift({
+        id: uid('imp'),
+        category: state.categories[0]?.id || 'herbs',
+        nameHi: nameHi || nameEn,
+        nameEn: nameEn || nameHi,
+        variety,
+        rate,
+        rateOptions: rateArr.length ? rateArr : [rate],
+        stock,
+        threshold,
+        photo: ''
+      });
+      added++;
+    }
+    saveState();
+    renderCurrentView();
+    toast(`Imported ${added} catalog items!`);
+  } catch (err) {
+    console.error(err);
+    toast('Failed to parse file. Check columns (English Name, Hindi Name, Rate, Stock).', 'error');
+  }
+}
+
+/* ============================================================================
+   BOOT
+============================================================================ */
+updateHeaderBadges();
+navigate('dashboard');
+</script>
+</body>
+</html>
+
+Key Notes on Using the Application
+
+  - Preloaded Bilingual Inventory: All items from your 5 workbooks (जड़ी बूटी /
+    Herbs, दरखत / Trees, फुल / Flowers, फल / Fruits with varieties, and सजावटी /
+    Ornamentals) plus starter supplies are preloaded with multi-rate quick
+    selector pills (e.g., ₹50 / ₹100 or ₹500 / ₹800) and customizable low-stock
+    thresholds (default 10).
+  - Default Master Password: Initially set to 1234 (a reminder badge appears in
+    Settings & Security until you change it). You can change it directly or test
+    the **SMS/Whats
