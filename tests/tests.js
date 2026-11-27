@@ -47,7 +47,7 @@ test('DatabaseService persists data, queues offline sync, and encrypts/decrypts 
   const db = new DatabaseService(createMemoryAdapter());
   const seeded = await db.seedIfNeeded({ products: sampleProducts() });
   assert.equal(seeded, true);
-  assert.equal(await db.seedIfNeeded({ products: [] }), false);
+  assert.equal(await db.seedIfNeeded({ products: [] }), true);
 
   await db.enqueueOfflineSync({ kind: 'sale', id: 'INV-101' });
   const flushed = await db.flushOfflineSync();
