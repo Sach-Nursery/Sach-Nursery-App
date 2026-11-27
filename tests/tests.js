@@ -24,7 +24,7 @@ import {
   computeActiveAlerts,
   computeSupplierHisab,
   buildInventoryExportRows
-} from '../src/logic/erpLogic.js';
+} from '../src/logic/Logic.js';
 
 const sampleProducts = () => ([
   {
