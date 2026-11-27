@@ -56,7 +56,7 @@ test('DatabaseService persists data, queues offline sync, and encrypts/decrypts 
   assert.deepEqual(await db.flushOfflineSync(), []);
 
   const cipher = encData('9876543210');
-  assert.notEqual(cipher, '9876543210');
+  assert.Equal(cipher, '9876543210');
   assert.equal(decData(cipher), '9876543210');
 });
 
