@@ -203,3 +203,76 @@ test('index.html includes responsive meta tags, title, global fonts, favicon, ma
   assert.match(html, /<script\s+type="module"\s+src="\/src\/ui\/main\.jsx"><\/script>/);
   assert.equal(/\b(Hindi|English|Hinglish)\b/i.test(html), false);
 });
+import {
+  applyFreeDamageLogEntry,
+  inferCategoryFromName,
+  addCategorySafe,
+  deleteCategorySafe,
+  filterReportsHub
+} from '../src/logic/inventoryAndReportsLogic.js';
+import { resolveVoiceOrder } from '../src/logic/voiceBilling.js';
+import { CATEGORIES } from '../src/logic/erpLogic.js';
+
+test('Free/Damage log validates stock, logs metadata, and automatically deducts inventory', () => {
+  const prods = [{ id: 'p-1', nameEn: 'Desi Red Rose', nameHi: 'देसी लाल गुलाब', category: 'Flowering Plants', stock: 12, variants: [{ id: 'v1', label: 'Std', price: 60, stock: 12, threshold: 5 }] }];
+
+  const over = applyFreeDamageLogEntry(prods, { productId: 'p-1', quantity: 20, category: 'Damage', reason: 'Storm' });
+  assert.equal(over.ok, false);
+
+  const ok = applyFreeDamageLogEntry(prods, { date: '28-11-2026', productId: 'p-1', quantity: 4, category: 'Free', reason: 'School Visit', loggedBy: 'u-admin' });
+  assert.equal(ok.ok, true);
+  assert.equal(ok.entry.loggedBy, 'u-admin');
+  assert.equal(ok.products[0].stock, 8);
+});
+
+test('Auto-category inference and safe category add/delete work cleanly', () => {
+  assert.equal(inferCategoryFromName('Kashmiri Pink Rose', CATEGORIES), 'Flowering Plants');
+  assert.equal(inferCategoryFromName('Amrapali Mango', CATEGORIES), 'Fruit Plants');
+
+  const added = addCategorySafe(CATEGORIES, 'Aquatic Plants', 'जलीय पौधे');
+  assert.equal(added.ok, true);
+  assert.equal(added.categories.length, CATEGORIES.length + 1);
+
+  const blockedDel = deleteCategorySafe(added.categories, 'Flowering Plants', [{ category: 'Flowering Plants' }]);
+  assert.equal(blockedDel.ok, false);
+
+  const okDel = deleteCategorySafe(added.categories, 'Aquatic Plants', []);
+  assert.equal(okDel.ok, true);
+});
+
+test('Voice billing auto-adds precise full names and shows variety list for generic names', () => {
+  const prods = [
+    { id: 'p-1', nameEn: 'Desi Red Rose', nameHi: 'देसी लाल गुलाब', category: 'Flowering Plants' },
+    { id: 'p-2', nameEn: 'Kashmiri Pink Rose', nameHi: 'कश्मीरी गुलाबी गुलाब', category: 'Flowering Plants' }
+  ];
+
+  // Generic name "gulaab ka paudha" -> custom audio replacement -> "rose" -> ambiguous choice list
+  const genericRes = resolveVoiceOrder('do gulaab ka paudha', prods);
+  assert.equal(genericRes.exactMatches.length, 0);
+  assert.equal(genericRes.ambiguousChoices.length, 1);
+  assert.equal(genericRes.ambiguousChoices[0].qty, 2);
+  assert.equal(genericRes.ambiguousChoices[0].candidates.length, 2);
+
+  // Precise full name -> auto-added cleanly
+  const exactRes = resolveVoiceOrder('3 Desi Red Rose', prods);
+  assert.equal(exactRes.exactMatches.length, 1);
+  assert.equal(exactRes.exactMatches[0].product.id, 'p-1');
+  assert.equal(exactRes.exactMatches[0].qty, 3);
+});
+
+test('Reports Hub filters by department, category, and date range accurately', () => {
+  const res = filterReportsHub({
+    sales: [{ id: 'INV-1', date: '28-11-2026', items: [{ category: 'Fruit Plants' }] }],
+    purchases: [{ id: 'PUR-1', date: '28-11-2026', items: [{ category: 'Flowering Plants' }] }],
+    freeDamageLogs: [{ id: 'FD-1', date: '28-11-2026', itemCategory: 'Fruit Plants', category: 'Damage' }],
+    workers: [{ id: 'w-1', name: 'Ramesh', role: 'Mali' }],
+    attendance: { '28-11-2026': { 'w-1': { status: 'Present', method: 'Biometric' } } },
+    department: 'Sales',
+    category: 'Fruit Plants'
+  });
+
+  assert.equal(res.filteredSales.length, 1);
+  assert.equal(res.filteredPurchases.length, 0);
+  assert.equal(res.filteredFreeDamage.length, 0);
+  assert.equal(res.attendanceRows.length, 0);
+});
