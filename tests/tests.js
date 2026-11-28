@@ -188,3 +188,18 @@ test('Dashboard cards, auto-clearing threshold alerts, supplier hisab, and multi
   assert.equal(careExport.length, 1);
   assert.ok(careExport[0].source.includes('ICAR'));
 });
+import { readFileSync } from 'node:fs';
+
+test('index.html includes responsive meta tags, title, global fonts, favicon, manifest, and #root mount', () => {
+  const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+
+  assert.match(html, /<meta\s+name="viewport"\s+content="width=device-width,\s*initial-scale=1\.0/i);
+  assert.match(html, /<title>Sach Nursery ERP<\/title>/);
+  assert.match(html, /fonts\.googleapis\.com\/css2\?family=Noto\+Sans\+Devanagari/);
+  assert.match(html, /Plus\+Jakarta\+Sans/);
+  assert.match(html, /id="favicon-link"/);
+  assert.match(html, /id="manifest-link"/);
+  assert.match(html, /<div\s+id="root"><\/div>/);
+  assert.match(html, /<script\s+type="module"\s+src="\/src\/ui\/main\.jsx"><\/script>/);
+  assert.equal(/\b(Hindi|English|Hinglish)\b/i.test(html), false);
+});
