@@ -210,7 +210,7 @@ import {
   deleteCategorySafe,
   filterReportsHub
 } from '../src/logic/inventoryAndReportsLogic.js';
-import { resolveVoiceOrder } from '../src/logic/voiceBillinglogic.js';
+import { resolveVoiceOrder } from '../src/logic/voiceBilling.js';
 import { CATEGORIES } from '../src/logic/erpLogic.js';
 
 test('Free/Damage log validates stock, logs metadata, and automatically deducts inventory', () => {
