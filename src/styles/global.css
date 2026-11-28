@@ -1,0 +1,26 @@
+:root {
+  --accent-primary: #059669;
+  --accent-secondary: #0f766e;
+}
+
+html,
+body {
+  min-height: 100%;
+  font-family: 'Plus Jakarta Sans', 'Noto Sans Devanagari', system-ui, -apple-system, sans-serif;
+}
+
+/* Global Sticky Table Headers across all modules & scrollable containers */
+table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background-color: #f1f5f9;
+  color: #334155;
+  box-shadow: inset 0 -1px 0 #cbd5e1;
+}
+
+.dark table thead th {
+  background-color: #1e293b;
+  color: #e2e8f0;
+  box-shadow: inset 0 -1px 0 #334155;
+}
