@@ -3,8 +3,24 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "scripts": {
     "test": "node --test tests/erp.test.js",
-    "test:watch": "node --test --watch tests/erp.test.js"
+    "test:watch": "node --test --watch tests/erp.test.js",
+    "test:ci": "node --check src/db/database.js && node --check src/logic/erpLogic.js && node --check src/logic/exportAndTranslate.js && node --check tests/erp.test.js && node --test tests/erp.test.js"
+  },
+  "dependencies": {
+    "exceljs": "^4.4.0",
+    "i18next": "^27.2.10",
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.9",
+    "lucide-react": "^1.83.0",
+    "qrcode": "^1.5.4",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "react-i18next": "^18.0.3",
+    "translate": "^3.1.1"
   }
 }
