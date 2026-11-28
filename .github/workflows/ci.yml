@@ -1,0 +1,51 @@
+name: Sach Nursery ERP CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  automated-tests:
+    name: Test Suite (Node ${{ matrix.node-version }})
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [20.x, 22.x]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Install dependencies (if lockfile present)
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          elif [ -f package.json ] && node -e "const p=require('./package.json'); process.exit(p.dependencies || p.devDependencies ? 0 : 1)"; then
+            npm install
+          else
+            echo "Zero external npm dependencies; skipping install."
+          fi
+
+      - name: Verify ES module syntax
+        run: |
+          node --check src/db/database.js
+          node --check src/logic/erpLogic.js
+          node --check tests/erp.test.js
+
+      - name: Run automated ERP test suite
+        run: npm test
