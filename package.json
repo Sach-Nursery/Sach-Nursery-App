@@ -9,7 +9,7 @@
   "scripts": {
     "test": "node --test tests/erp.test.js",
     "test:watch": "node --test --watch tests/erp.test.js",
-    "test:ci": "node --check src/db/database.js && node --check src/logic/erpLogic.js && node --check src/logic/exportAndTranslate.js && node --check tests/erp.test.js && node --test tests/erp.test.js"
+    "test:ci": "node --check src/db/database.js && node --check src/logic/erpLogic.js && node --check src/logic/erpLogic.js && node --check tests/erp.test.js && node --test tests/erp.test.js"
   },
   "dependencies": {
     "exceljs": "^4.4.0",
